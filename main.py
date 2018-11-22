@@ -2,27 +2,27 @@ import numpy as np
 import cv2
 import time
 import os
+import mouse
 
 from grabscreen import grab_screen
-from getkeys import key_check
+from getkeys import key_mouse_check
+from possible_combinations import possible_combinations
 
 x_1 = 0
 y_1 = 40
 x_2 = 1280
 y_2 = 740
+results_dict = possible_combinations(['shift','a','d','s','w',' ','left','right'])
 
 def keys_to_output(keys):
-    #[A,W,D]
-    output = [0,0,0]
+    dict_key = ""
+    for button_pressed in keys:
+        dict_key += button_pressed
 
-    if 'A' in keys:
-        output[0] = 1
-    elif 'D' in keys:
-        output[2] = 1
+    if dict_key in results_dict:
+        return results_dict[dict_key]
     else:
-        output[0] = 1
-
-    return output
+        return results_dict[""]
 
 file_name = "training_data.npy"
 
@@ -32,6 +32,7 @@ if os.path.isfile(file_name):
 else:
     print("File does not exist, starting fresh!")
     training_data = []
+total_combos = []
 
 def Main():
     for i in list(range(4))[::-1]:
@@ -43,12 +44,12 @@ def Main():
     while(True):
         screen = grab_screen(region=(x_1,y_1,x_2,y_2))
         screen = cv2.cvtColor(screen, cv2.COLOR_BGR2GRAY)
-        screen = cv2.resize(screen, (80, 60))
-        keys = key_check()
+        screen = cv2.resize(screen, (160, 90))
+        keys = key_mouse_check()
         output = keys_to_output(keys)
         training_data.append([screen,output])
-        # print("{} seconds".format(time.time()-last_time))
-        last_time = time.time()
+        print("{} seconds".format(time.time()-last_time))
+        # last_time = time.time()
         print(output)
 
         if len(training_data) % 500 == 0:
@@ -57,5 +58,3 @@ def Main():
 
 if __name__ == "__main__":
     Main()
-    # for item in training_data:
-    #     print(item[1])
