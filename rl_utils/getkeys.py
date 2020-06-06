@@ -1,7 +1,6 @@
 import keyboard
 import mouse
 import pygame
-import time
 
 pygame.display.init()
 pygame.joystick.init()

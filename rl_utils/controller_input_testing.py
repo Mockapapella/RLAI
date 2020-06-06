@@ -7,6 +7,8 @@ WHITE = (255, 255, 255)
 # This is a simple class that will help us print to the screen
 # It has nothing to do with the joysticks, just outputting the
 # information.
+
+
 class TextPrint:
     def __init__(self):
         self.reset()
@@ -50,7 +52,7 @@ pygame.joystick.init()
 textPrint = TextPrint()
 
 # -------- Main Program Loop -----------
-while done == False:
+while done is False:
     # EVENT PROCESSING STEP
     for event in pygame.event.get():  # User did something
         if event.type == pygame.QUIT:  # If user clicked close
@@ -160,7 +162,7 @@ print(pygame.joystick.Joystick(0).get_axis(0))
 print(pygame.joystick.Joystick(0).get_axis(1))
 print(pygame.joystick.Joystick(0).get_axis(2))
 print(pygame.joystick.Joystick(0).get_axis(3))
-print(pygame.joystick.Joystick(0).get_axis(4))
+# print(pygame.joystick.Joystick(0).get_axis(4))
 # while(True):
 #     pygame.event.pump()
 #     print(pygame.joystick.Joystick(0).get_axis(0))
