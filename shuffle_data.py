@@ -1,8 +1,14 @@
-from pathlib import Path
-from random import shuffle
-
+#!/usr/bin/env python
+# -*- coding: utf8 -*-
 import numpy as np
 import pandas as pd
+from collections import Counter
+from random import shuffle
+from pathlib import Path
+
+import threading
+from queue import Queue
+
 
 from possible_combinations import possible_combinations
 
@@ -82,7 +88,7 @@ while starting_value < ending_value + 1:
                 ai_width, ai_height, starting_value
             )
         )
-    except Exception:
+    except:
         starting_value += 1
         file_name = Path(
             "training_data/rgb/640_360/training_data-{}-{}-{}.npy".format(

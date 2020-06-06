@@ -1,13 +1,14 @@
-import os
+import numpy as np
+import cv2
 import time
+import os
+import mouse
+import keyboard
+
 from pathlib import Path
 
-import cv2
-import keyboard
-import numpy as np
-
-from getkeys import get_inputs
 from grabscreen import grab_screen
+from getkeys import get_inputs
 from possible_combinations import possible_combinations
 
 x_1 = 0

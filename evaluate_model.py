@@ -1,17 +1,16 @@
-import time
-
-import cv2
-import keyboard
-import mouse
 import numpy as np
+import cv2
+import time
+import os
+import mouse
+import keyboard
+
 import tensorflow as tf
 
 from grabscreen import grab_screen
-from models import otherception3
-from possible_combinations import possible_combinations
-from possible_combinations import string_to_commands
-
-# from getkeys import get_inputs
+from getkeys import get_inputs
+from possible_combinations import possible_combinations, string_to_commands
+from models import alexnet2, otherception3
 
 x_1 = 0
 y_1 = 40
@@ -42,11 +41,11 @@ def keys_to_press(move):
     for button in dict_keys_to_button_presses_dict["shiftadswleftright"]:
         try:
             mouse.release(button)
-        except Exception:
+        except:
             pass
         try:
             keyboard.release(button)
-        except Exception:
+        except:
             pass
 
     for button_press in dict_keys_to_button_presses_dict:
@@ -54,11 +53,11 @@ def keys_to_press(move):
             for button in dict_keys_to_button_presses_dict[button_press]:
                 try:
                     mouse.press(button)
-                except Exception:
+                except:
                     pass
                 try:
                     keyboard.press(button)
-                except Exception:
+                except:
                     pass
 
 
@@ -66,11 +65,11 @@ def unpress_all_keys():
     for button in dict_keys_to_button_presses_dict["shiftadswleftright"]:
         try:
             mouse.release(button)
-        except Exception:
+        except:
             pass
         try:
             keyboard.release(button)
-        except Exception:
+        except:
             pass
 
 
@@ -83,7 +82,7 @@ def Main():
         print(i + 1)
         time.sleep(1)
 
-    # last_time = time.time()
+    last_time = time.time()
 
     paused = False
     while True:
@@ -93,7 +92,7 @@ def Main():
             screen = cv2.resize(screen, (WIDTH, HEIGHT))
 
             # print("{} seconds".format(time.time()-last_time))
-            # last_time = time.time()
+            last_time = time.time()
 
             with tf.Session(
                 config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
@@ -103,7 +102,7 @@ def Main():
             # print(moves, prediction)
             keys_to_press(moves)
 
-        # keys = get_inputs()
+        keys = get_inputs()
 
         if keyboard.is_pressed("P"):
             if paused:

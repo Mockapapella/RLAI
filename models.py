@@ -1,4 +1,5 @@
 # alexnet.py
+
 """ AlexNet.
 References:
     - Alex Krizhevsky, Ilya Sutskever & Geoffrey E. Hinton. ImageNet
@@ -6,16 +7,14 @@ References:
 Links:
     - [AlexNet Paper](http://papers.nips.cc/paper/4824-imagenet-classification-with-deep-convolutional-neural-networks.pdf)
 """
+
 import tflearn
-from tflearn.layers.conv import avg_pool_2d
-from tflearn.layers.conv import conv_2d
-from tflearn.layers.conv import max_pool_2d
-from tflearn.layers.core import dropout
-from tflearn.layers.core import fully_connected
-from tflearn.layers.core import input_data
+from tflearn.layers.conv import conv_2d, max_pool_2d, avg_pool_2d, conv_3d, max_pool_3d, avg_pool_3d
+from tflearn.layers.core import input_data, dropout, fully_connected
 from tflearn.layers.estimator import regression
-from tflearn.layers.merge_ops import merge
 from tflearn.layers.normalization import local_response_normalization
+from tflearn.layers.merge_ops import merge
+import tensorflow as tf
 
 
 def otherception3(

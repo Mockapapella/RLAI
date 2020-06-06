@@ -1,11 +1,12 @@
 # train_model.py
-from pathlib import Path
-from random import shuffle
 
 import numpy as np
 import tensorflow as tf
 
-from models import otherception3
+from pathlib import Path
+from random import shuffle
+
+from models import alexnet, alexnet2, otherception3
 
 FILE_I_END = 185
 
@@ -44,10 +45,10 @@ for e in range(EPOCHS):
             # train_data = np.load(str(filepath))
             print(
                 """
-                ########################################################
-                # NOW TRAINING FILE {} AND COUNT {} ON EPOCH NUMBER {} #
-                ########################################################
-                """.format(
+				########################################################################################################
+				######################### NOW TRAINING FILE {} AND COUNT {} ON EPOCH NUMBER {} #########################
+				########################################################################################################
+				""".format(
                     i, count, e
                 )
             )
