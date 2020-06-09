@@ -6,8 +6,8 @@ import cv2
 import keyboard
 import mss
 import numpy as np
-from getkeys import get_inputs
 
+from rl_utils.getkeys import get_inputs
 from rl_utils.utils import possible_combinations
 
 SCREEN_CAPTURE_LEFT = 0

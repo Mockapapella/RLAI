@@ -1,15 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
+from pathlib import Path
+from random import shuffle
+
 import numpy as np
 import pandas as pd
-from collections import Counter
-from random import shuffle
-from pathlib import Path
-
-import threading
-from queue import Queue
-
-
 from possible_combinations import possible_combinations
 
 permutation_dict = possible_combinations(["shift", "a", "d", "s", "w", "left", "right"])
@@ -88,7 +83,7 @@ while starting_value < ending_value + 1:
                 ai_width, ai_height, starting_value
             )
         )
-    except:
+    except Exception:
         starting_value += 1
         file_name = Path(
             "training_data/rgb/640_360/training_data-{}-{}-{}.npy".format(
