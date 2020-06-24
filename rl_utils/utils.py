@@ -1,5 +1,11 @@
+import os
+import threading
 from itertools import chain
 from itertools import combinations
+
+import torch
+
+# import numpy as np
 
 
 def powerset(iterable):
@@ -70,3 +76,14 @@ def string_to_commands(choices):
 
     # print(results_dict)
     return results_dict
+
+
+class ThreadingWrite(threading.Thread):
+    def __init__(self, data, filepath, filename):
+        super().__init__()
+        self.data = data
+        self.filepath = filepath
+        self.filename = filename
+
+    def run(self):
+        torch.save(self.data, os.path.join(self.filepath, self.filename))

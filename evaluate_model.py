@@ -57,15 +57,17 @@ SCORE_DETECTOR = MnistNet()
 SCORE_DETECTOR.load_state_dict(torch.load(SCORE_DETECTION_PATH))
 SCORE_DETECTOR.to(DEVICE)
 
+GAME_SCORE = [0, 0]
 
-def display_score(score_screenshot_crop, DEVICE, mnist=False):
+
+def score(score_screenshot_crop, DEVICE, mnist=False):
     sct = mss.mss()
     screen = np.asarray(sct.grab(score_screenshot_crop))
     screen = cv2.cvtColor(screen, cv2.COLOR_BGR2GRAY)
     _, screen = cv2.threshold(screen, 200, 255, cv2.THRESH_BINARY)
     screen = cv2.dilate(screen, (3, 3), iterations=3)
     screen = cv2.resize(screen, (28, 28))
-    cv2.imshow("Captured View {}".format(str(score_screenshot_crop)), screen)
+    # cv2.imshow("Captured View {}".format(str(score_screenshot_crop)), screen)
 
     if mnist is True:
         score_tensor = torch.tensor(screen, dtype=torch.float).to(DEVICE)
@@ -75,17 +77,10 @@ def display_score(score_screenshot_crop, DEVICE, mnist=False):
         with torch.no_grad():
             outputs = SCORE_DETECTOR(score_tensor).to(DEVICE)
             _, prediction = torch.max(outputs.data, 1)
-            print(prediction)
-
-
-def mnist_score_detection(SCORE_CROP_MY_TEAM, SCORE_CROP_THEIR_TEAM, DEVICE):
-    while True:
-        display_score(SCORE_CROP_MY_TEAM, DEVICE, mnist=True)
-        display_score(SCORE_CROP_THEIR_TEAM, DEVICE, mnist=True)
-
-        if cv2.waitKey(25) & 0xFF == ord("q"):
-            cv2.destroyAllWindows()
-            break
+            # print(prediction)
+            return prediction
+    elif mnist is False:
+        return None
 
 
 # def keys_to_press(move):
@@ -131,10 +126,27 @@ def mnist_score_detection(SCORE_CROP_MY_TEAM, SCORE_CROP_THEIR_TEAM, DEVICE):
 #             pass
 
 
-def Main(SCORE_CROP_MY_TEAM, SCORE_CROP_THEIR_TEAM, DEVICE, mnist=True):
+def Main(SCORE_CROP_MY_TEAM, SCORE_CROP_THEIR_TEAM, DEVICE, GAME_SCORE, mnist=True):
+    """
+    This function is broken until further notice
+    """
+    # new_game = True
+    list_of_scores_since_last_goal = np.array([GAME_SCORE])
     while True:
-        display_score(SCORE_CROP_MY_TEAM, DEVICE, mnist=True)
-        display_score(SCORE_CROP_THEIR_TEAM, DEVICE, mnist=True)
+        my_score = score(SCORE_CROP_MY_TEAM, DEVICE, mnist=True)
+        their_score = score(SCORE_CROP_THEIR_TEAM, DEVICE, mnist=True)
+        current_score_count = np.array([my_score[0].item(), their_score[0].item()])
+        list_of_scores_since_last_goal = np.vstack(
+            ([list_of_scores_since_last_goal, current_score_count])
+        )
+        # if new_game:
+        #     print("NEW GAME")
+        #     print(GAME_SCORE)
+        #     new_game = False
+        # if all(elem in GAME_SCORE for elem in current_score_count):
+        #     print(current_score_count)
+        #     GAME_SCORE = current_score_count
+        # if game ends reset the score
 
         if cv2.waitKey(25) & 0xFF == ord("q"):
             cv2.destroyAllWindows()
@@ -180,4 +192,4 @@ def Main(SCORE_CROP_MY_TEAM, SCORE_CROP_THEIR_TEAM, DEVICE, mnist=True):
 
 
 if __name__ == "__main__":
-    Main(SCORE_CROP_MY_TEAM, SCORE_CROP_THEIR_TEAM, DEVICE)
+    Main(SCORE_CROP_MY_TEAM, SCORE_CROP_THEIR_TEAM, DEVICE, GAME_SCORE)
