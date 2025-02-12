@@ -1,13 +1,21 @@
-# Rocket Python
+# Carlaisle
 
-Ideas from notes:
+Carlaisle is an AI that has learned to play Rocket League via Deep Learning.
 
-- Start with GAN to replicate an actual image
-- Use those generated GAN images to stuff the training data until it has an equivalent of 60FPS
-- Tokenize an image
-  - Learn how tokenizers work
-- [Frame, buttons pressed, timestamp]
-- Use some sort of generator network to "dream" about what actions it should take until the next check in with reality
-  - Would have to be based on the previous set of "x" frames to enforce continuity
-  - Pull concepts from language models
-  - Transformers
+Carlaisle's process:
+
+[0, 0], GAME START
+[0, 0], ROUND START
+[1, 0], ROUND END, WIN
+[1, 0], ROUND START
+[1, 1], ROUND END, LOSS
+[1, 1], ROUND START
+[2, 1], ROUND END, WIN
+[2, 1], GAME END, WIN
+
+Collected data tensor proposed to look like this:
+
+[[[[[frame1, frame2, ..., frameN], WIN], [[frame1, frame2, ..., frameN], LOSS], [[frame1, frame2, ..., frameN], WIN]], WIN],
+ [[[[frame1, frame2, ..., frameN], LOSS], [[frame1, frame2, ..., frameN], LOSS], [[frame1, frame2, ..., frameN], WIN]], LOSS]]
+
+This is a list of all games recorded, labeled as a win or a loss. Each of those games are subsected to record each round's win or loss value.
