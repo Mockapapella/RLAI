@@ -38,7 +38,7 @@ class InputMonitor:
             return "/".join(key_event.keycode)
         return key_event.keycode
 
-    def monitor(self):
+    def get_inputs(self):
         try:
             print("\nMonitoring input (Press CTRL+C to exit)...")
             for device in self.devices:
@@ -48,40 +48,38 @@ class InputMonitor:
                 except Exception as e:
                     print(f"Couldn't grab {device.name}: {str(e)}")
 
-            while True:
-                for device in self.devices:
-                    try:
-                        events = device.read()
-                        if not events:
-                            continue
-
-                        for event in events:
-                            if event.type == ecodes.EV_KEY:
-                                key_event = evdev.categorize(event)
-                                key_name = self._get_key_name(key_event)
-                                if key_event.keystate == key_event.key_down:
-                                    self.current_keys.add(key_name)
-                                elif key_event.keystate == key_event.key_up:
-                                    self.current_keys.discard(key_name)
-
-                            elif event.type == ecodes.EV_ABS:
-                                # Handle analog sticks and d-pad
-                                if event.code in self.axis_states:
-                                    self.axis_states[event.code] = event.value
-
-                    except BlockingIOError:
+            for device in self.devices:
+                try:
+                    events = device.read()
+                    if not events:
                         continue
 
-                # Get formatted axis values
-                axis_display = (
-                    f"L: ({self.axis_states[ecodes.ABS_X]}, {self.axis_states[ecodes.ABS_Y]}) "
-                    f"R: ({self.axis_states[ecodes.ABS_RX]}, {self.axis_states[ecodes.ABS_RY]}) "
-                    f"D-pad: ({self.axis_states[ecodes.ABS_HAT0X]}, {self.axis_states[ecodes.ABS_HAT0Y]})"
-                )
+                    for event in events:
+                        if event.type == ecodes.EV_KEY:
+                            key_event = evdev.categorize(event)
+                            key_name = self._get_key_name(key_event)
+                            if key_event.keystate == key_event.key_down:
+                                self.current_keys.add(key_name)
+                            elif key_event.keystate == key_event.key_up:
+                                self.current_keys.discard(key_name)
 
-                output = f"Keys: {sorted(self.current_keys)} | {axis_display}"
-                print(f"\r{output.ljust(120)}", end="", flush=True)
-                time.sleep(0.05)
+                        elif event.type == ecodes.EV_ABS:
+                            # Handle analog sticks and d-pad
+                            if event.code in self.axis_states:
+                                self.axis_states[event.code] = event.value
+
+                except BlockingIOError:
+                    continue
+
+            # Get formatted axis values
+            axis_display = (
+                f"L: ({self.axis_states[ecodes.ABS_X]}, {self.axis_states[ecodes.ABS_Y]}) "
+                f"R: ({self.axis_states[ecodes.ABS_RX]}, {self.axis_states[ecodes.ABS_RY]}) "
+                f"D-pad: ({self.axis_states[ecodes.ABS_HAT0X]}, {self.axis_states[ecodes.ABS_HAT0Y]})"
+            )
+
+            output = f"Keys: {sorted(self.current_keys)} | {axis_display}"
+            print(f"\r{output.ljust(200)}", end="", flush=True)
 
         except KeyboardInterrupt:
             print("\nMonitoring stopped.")
