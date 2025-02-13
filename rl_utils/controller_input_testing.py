@@ -1,234 +1,95 @@
-import pygame
-
-# Define some colors
-BLACK = (0, 0, 0)
-WHITE = (255, 255, 255)
-
-# This is a simple class that will help us print to the screen
-# It has nothing to do with the joysticks, just outputting the
-# information.
+import evdev
+from evdev import ecodes
+import time
+import sys
 
 
-class TextPrint:
+class InputMonitor:
     def __init__(self):
-        self.reset()
-        self.font = pygame.font.Font(None, 20)
+        self.current_keys = set()
+        self.axis_states = {
+            ecodes.ABS_X: 0,  # Left stick X
+            ecodes.ABS_Y: 0,  # Left stick Y
+            ecodes.ABS_RX: 0,  # Right stick X
+            ecodes.ABS_RY: 0,  # Right stick Y
+            ecodes.ABS_HAT0X: 0,  # D-pad X
+            ecodes.ABS_HAT0Y: 0,  # D-pad Y
+        }
+        self.devices = self._get_input_devices()
 
-    def print(self, screen, textString):
-        textBitmap = self.font.render(textString, True, BLACK)
-        screen.blit(textBitmap, [self.x, self.y])
-        self.y += self.line_height
+        print("Detected input devices:")
+        for i, dev in enumerate(self.devices):
+            print(f" {i + 1}. {dev.name} (Path: {dev.path})")
 
-    def reset(self):
-        self.x = 10
-        self.y = 10
-        self.line_height = 15
+    def _get_input_devices(self):
+        devices = []
+        for device_path in evdev.list_devices():
+            try:
+                dev = evdev.InputDevice(device_path)
+                # Include all input devices since controllers might not be classified as keyboards/mice
+                devices.append(dev)
+            except:
+                continue
+        return devices
 
-    def indent(self):
-        self.x += 10
+    def _get_key_name(self, key_event):
+        """Convert keycode tuple to string if needed"""
+        if isinstance(key_event.keycode, tuple):
+            return "/".join(key_event.keycode)
+        return key_event.keycode
 
-    def unindent(self):
-        self.x -= 10
+    def monitor(self):
+        try:
+            print("\nMonitoring input (Press CTRL+C to exit)...")
+            for device in self.devices:
+                try:
+                    device.grab()
+                    print(f"Grabbed device: {device.name}")
+                except Exception as e:
+                    print(f"Couldn't grab {device.name}: {str(e)}")
 
+            while True:
+                for device in self.devices:
+                    try:
+                        events = device.read()
+                        if not events:
+                            continue
 
-pygame.init()
+                        for event in events:
+                            if event.type == ecodes.EV_KEY:
+                                key_event = evdev.categorize(event)
+                                key_name = self._get_key_name(key_event)
+                                if key_event.keystate == key_event.key_down:
+                                    self.current_keys.add(key_name)
+                                elif key_event.keystate == key_event.key_up:
+                                    self.current_keys.discard(key_name)
 
-# Set the width and height of the screen [width,height]
-size = [500, 700]
-screen = pygame.display.set_mode(size)
+                            elif event.type == ecodes.EV_ABS:
+                                # Handle analog sticks and d-pad
+                                if event.code in self.axis_states:
+                                    self.axis_states[event.code] = event.value
 
-pygame.display.set_caption("My Game")
+                    except BlockingIOError:
+                        continue
 
-# Loop until the user clicks the close button.
-done = False
+                # Get formatted axis values
+                axis_display = (
+                    f"L: ({self.axis_states[ecodes.ABS_X]}, {self.axis_states[ecodes.ABS_Y]}) "
+                    f"R: ({self.axis_states[ecodes.ABS_RX]}, {self.axis_states[ecodes.ABS_RY]}) "
+                    f"D-pad: ({self.axis_states[ecodes.ABS_HAT0X]}, {self.axis_states[ecodes.ABS_HAT0Y]})"
+                )
 
-# Used to manage how fast the screen updates
-clock = pygame.time.Clock()
+                output = f"Keys: {sorted(self.current_keys)} | {axis_display}"
+                print(f"\r{output.ljust(120)}", end="", flush=True)
+                time.sleep(0.05)
 
-# Initialize the joysticks
-pygame.joystick.init()
-
-# Get ready to print
-textPrint = TextPrint()
-
-# -------- Main Program Loop -----------
-while done is False:
-    # EVENT PROCESSING STEP
-    for event in pygame.event.get():  # User did something
-        if event.type == pygame.QUIT:  # If user clicked close
-            done = True  # Flag that we are done so we exit this loop
-
-        # Possible joystick actions: JOYAXISMOTION JOYBALLMOTION JOYBUTTONDOWN JOYBUTTONUP JOYHATMOTION
-        if event.type == pygame.JOYBUTTONDOWN:
-            print("Joystick button pressed.")
-        if event.type == pygame.JOYBUTTONUP:
-            print("Joystick button released.")
-
-    # DRAWING STEP
-    # First, clear the screen to white. Don't put other drawing commands
-    # above this, or they will be erased with this command.
-    screen.fill(WHITE)
-    textPrint.reset()
-
-    # Get count of joysticks
-    joystick_count = pygame.joystick.get_count()
-
-    textPrint.print(screen, "Number of joysticks: {}".format(joystick_count))
-    textPrint.indent()
-
-    # For each joystick:
-    for i in range(joystick_count):
-        joystick = pygame.joystick.Joystick(i)
-        joystick.init()
-
-        textPrint.print(screen, "Joystick {}".format(i))
-        textPrint.indent()
-
-        # Get the name from the OS for the controller/joystick
-        name = joystick.get_name()
-        textPrint.print(screen, "Joystick name: {}".format(name))
-
-        # Usually axis run in pairs, up/down for one, and left/right for
-        # the other.
-        axes = joystick.get_numaxes()
-        textPrint.print(screen, "Number of axes: {}".format(axes))
-        textPrint.indent()
-
-        for i in range(axes):
-            axis = joystick.get_axis(i)
-            textPrint.print(screen, "Axis {} value: {:>6.3f}".format(i, axis))
-        textPrint.unindent()
-
-        buttons = joystick.get_numbuttons()
-        textPrint.print(screen, "Number of buttons: {}".format(buttons))
-        textPrint.indent()
-
-        for i in range(buttons):
-            button = joystick.get_button(i)
-            textPrint.print(screen, "Button {:>2} value: {}".format(i, button))
-        textPrint.unindent()
-
-        # Hat switch. All or nothing for direction, not like joysticks.
-        # Value comes back in an array.
-        hats = joystick.get_numhats()
-        textPrint.print(screen, "Number of hats: {}".format(hats))
-        textPrint.indent()
-
-        for i in range(hats):
-            hat = joystick.get_hat(i)
-            textPrint.print(screen, "Hat {} value: {}".format(i, str(hat)))
-        textPrint.unindent()
-
-        textPrint.unindent()
-
-    # ALL CODE TO DRAW SHOULD GO ABOVE THIS COMMENT
-
-    # Go ahead and update the screen with what we've drawn.
-    pygame.display.flip()
-
-    # Limit to 20 frames per second
-    clock.tick(20)
-
-# Close the window and quit.
-# If you forget this line, the program will 'hang'
-# on exit if running from IDLE.
-pygame.quit()
+        except KeyboardInterrupt:
+            print("\nMonitoring stopped.")
+            for device in self.devices:
+                device.ungrab()
+            sys.exit(0)
 
 
-#######################################################################
-#######################################################################
-#######################################################################
-#######################################################################
-#######################################################################
-#######################################################################
-#######################################################################
-#######################################################################
-#######################################################################
-#######################################################################
-#######################################################################
-#######################################################################
-
-
-# Get the name of the joystick and print it
-JoyName = pygame.joystick.Joystick(0).get_name()
-print("Name of the joystick: {}".format(JoyName))
-
-# Get the number of axes
-JoyAx = pygame.joystick.Joystick(0).get_numaxes()
-print("Number of axis: {}".format(JoyAx))
-
-# print(the values for the axes
-print(pygame.joystick.Joystick(0).get_axis(0))
-print(pygame.joystick.Joystick(0).get_axis(1))
-print(pygame.joystick.Joystick(0).get_axis(2))
-print(pygame.joystick.Joystick(0).get_axis(3))
-# print(pygame.joystick.Joystick(0).get_axis(4))
-# while(True):
-#     pygame.event.pump()
-#     print(pygame.joystick.Joystick(0).get_axis(0))
-
-joystick_count = pygame.joystick.get_count()
-
-for i in range(joystick_count):
-    joystick = pygame.joystick.Joystick(i)
-    print(joystick.get_name())
-    print(joystick.get_numaxes())
-    print(joystick.get_numbuttons())
-    print(joystick)
-
-# while(True):
-#     pygame.event.pump()
-#     print(pygame.joystick.Joystick(0).get_axis(0))
-
-while True:
-    # EVENT PROCESSING STEP
-    for event in pygame.event.get():  # User did something
-        if event.type == pygame.QUIT:  # If user clicked close
-            done = True  # Flag that we are done so we exit this loop
-
-        # Possible joystick actions: JOYAXISMOTION JOYBALLMOTION JOYBUTTONDOWN JOYBUTTONUP JOYHATMOTION
-        if event.type == pygame.JOYBUTTONDOWN:
-            print("Joystick button pressed.")
-        if event.type == pygame.JOYBUTTONUP:
-            print("Joystick button released.")
-
-    # Get count of joysticks
-    joystick_count = pygame.joystick.get_count()
-
-    print("Number of joysticks: {}".format(joystick_count))
-
-    # For each joystick:
-    for i in range(joystick_count):
-        joystick = pygame.joystick.Joystick(i)
-        joystick.init()
-
-        print("Joystick {}".format(i))
-
-        # Get the name from the OS for the controller/joystick
-        name = joystick.get_name()
-        print("Joystick name: {}".format(name))
-
-        # Usually axis run in pairs, up/down for one, and left/right for
-        # the other.
-        axes = joystick.get_numaxes()
-        print("Number of axes: {}".format(axes))
-
-        for i in range(axes):
-            axis = joystick.get_axis(i)
-            print("Axis {} value: {:>6.3f}".format(i, axis))
-
-        buttons = joystick.get_numbuttons()
-        print("Number of buttons: {}".format(buttons))
-
-        for i in range(buttons):
-            button = joystick.get_button(i)
-            print("Button {:>2} value: {}".format(i, button))
-
-        # Hat switch. All or nothing for direction, not like joysticks.
-        # Value comes back in an array.
-        hats = joystick.get_numhats()
-        print("Number of hats: {}".format(hats))
-
-        for i in range(hats):
-            hat = joystick.get_hat(i)
-            print("Hat {} value: {}".format(i, str(hat)))
+if __name__ == "__main__":
+    monitor = InputMonitor()
+    monitor.monitor()
