@@ -59,18 +59,6 @@ class FrameGrabber:
             frame = np.array(self.sct.grab(monitor), dtype=np.uint8, order="C")[
                 :, :, :3
             ]  # Remove alpha channel if present
-
-            # Update FPS counter
-            self.frame_count += 1
-            if time.time() - self.last_fps_print >= 1:
-                fps = self.frame_count / (time.time() - self.last_fps_print)
-                print(
-                    f"\rFPS: {fps:.1f} | Resolution: {frame.shape[1]}x{frame.shape[0]}",
-                    end="",
-                )
-                self.frame_count = 0
-                self.last_fps_print = time.time()
-
             return frame
 
         except mss.ScreenShotError:
