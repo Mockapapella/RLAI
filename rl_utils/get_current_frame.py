@@ -12,6 +12,8 @@ class FrameGrabber:
         self.last_geometry_check = 0
         self.frame_count = 0
         self.last_fps_print = time.time()
+        self.buffer = None  # Reusable frame buffer
+        self._last_shape = (0, 0)
 
     def _get_window_geometry(self):
         """Cached geometry check with rate limiting"""
@@ -49,17 +51,27 @@ class FrameGrabber:
             return self.monitor
 
     def capture_frame(self):
-        """Ultra-fast capture path optimized for numpy"""
         monitor = self._get_window_geometry()
         if not monitor:
             return None
 
         try:
-            # Direct capture to numpy array with minimal conversions
-            frame = np.array(self.sct.grab(monitor), dtype=np.uint8, order="C")[
-                :, :, :3
-            ]  # Remove alpha channel if present
-            return frame
+            # Get screenshot data directly as bytes
+            sct = self.sct.grab(monitor)
+
+            # Only reallocate buffer when window size changes
+            if (sct.height, sct.width) != self._last_shape:
+                self.buffer = np.zeros((sct.height, sct.width, 3), dtype=np.uint8)
+                self._last_shape = (sct.height, sct.width)
+
+            # Direct byte copy using numpy
+            np.copyto(
+                self.buffer,
+                np.frombuffer(sct.rgb, dtype=np.uint8).reshape(
+                    (sct.height, sct.width, 3)
+                ),
+            )
+            return self.buffer
 
         except mss.ScreenShotError:
             return None
