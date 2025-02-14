@@ -25,7 +25,9 @@ PREV_MODEL = "Rocket-Python-{}-{}x{}-{}-{}_Epochs.model".format(
 
 LOAD_MODEL = False
 
-with Path("training_data/rgb/640x360-2000_Sample_Size/training_data-1.npy") as get_outputs:
+with Path(
+    "training_data/rgb/640x360-2000_Sample_Size/training_data-1.npy"
+) as get_outputs:
     total_outputs = np.load(get_outputs)
     print(len(total_outputs[1][1]))
     total_outputs = len(total_outputs[1][1])
@@ -48,12 +50,12 @@ for e in range(EPOCHS):
 				########################################################################################################
 				######################### NOW TRAINING FILE {} AND COUNT {} ON EPOCH NUMBER {} #########################
 				########################################################################################################
-				""".format(
-                    i, count, e
-                )
+				""".format(i, count, e)
             )
             train_data = np.load(
-                "training_data/rgb/640x360-2000_Sample_Size/training_data-{}.npy".format(i)
+                "training_data/rgb/640x360-2000_Sample_Size/training_data-{}.npy".format(
+                    i
+                )
             )
             shuffle(train_data)
             print("training_data-{}.npy".format(i), len(train_data))
@@ -70,7 +72,9 @@ for e in range(EPOCHS):
             test_y = [i[1] for i in test]
 
             with tf.Session(
-                config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)
+                config=tf.ConfigProto(
+                    allow_soft_placement=True, log_device_placement=True
+                )
             ):
                 model.fit(
                     X,

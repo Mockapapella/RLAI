@@ -1,23 +1,21 @@
 import numpy as np
 import mss
+import mss.tools
 import time
 import subprocess
+from typing import Optional
 
 
 class FrameGrabber:
     def __init__(self):
         self.sct = mss.mss()
-        self.current_window = None
         self.monitor = None
         self.last_geometry_check = 0
-        self.frame_count = 0
-        self.last_fps_print = time.time()
-        self.buffer = None  # Reusable frame buffer
-        self._last_shape = (0, 0)
 
-    def _get_window_geometry(self):
+    def _get_window_geometry(self) -> Optional[dict]:
         """Cached geometry check with rate limiting"""
-        if time.time() - self.last_geometry_check < 0.5:  # Only check twice per second
+        current_time = time.time()
+        if current_time - self.last_geometry_check < 0.5:  # Only check twice per second
             return self.monitor
 
         try:
@@ -27,51 +25,51 @@ class FrameGrabber:
                 timeout=0.1,
             ).decode()
 
+            # Fast string parsing without dict comprehension
             geom = {}
             for line in output.strip().split("\n"):
                 if "=" in line:
                     key, val = line.split("=", 1)
-                    geom[key] = int(val)
+                    if key in ("X", "Y", "WIDTH", "HEIGHT"):
+                        geom[key] = int(val)
 
-            new_monitor = {
-                "left": geom["X"],
-                "top": geom["Y"],
-                "width": geom["WIDTH"],
-                "height": geom["HEIGHT"],
-            }
-
-            if new_monitor != self.monitor:
-                self.monitor = new_monitor
+            # Only create new dict if values changed
+            if not self.monitor or any(
+                self.monitor[k] != v
+                for k, v in zip(
+                    ["left", "top", "width", "height"],
+                    [geom["X"], geom["Y"], geom["WIDTH"], geom["HEIGHT"]],
+                )
+            ):
+                self.monitor = {
+                    "left": geom["X"],
+                    "top": geom["Y"],
+                    "width": geom["WIDTH"],
+                    "height": geom["HEIGHT"],
+                }
                 print(f"\nNew window: {self.monitor}")
 
-            self.last_geometry_check = time.time()
+            self.last_geometry_check = current_time
             return self.monitor
 
         except (subprocess.TimeoutExpired, KeyError, subprocess.CalledProcessError):
             return self.monitor
 
-    def capture_frame(self):
+    def capture_frame(self) -> Optional[np.ndarray]:
+        """Capture frame with zero-copy transfer when possible"""
         monitor = self._get_window_geometry()
         if not monitor:
             return None
 
         try:
-            # Get screenshot data directly as bytes
-            sct = self.sct.grab(monitor)
-
-            # Only reallocate buffer when window size changes
-            if (sct.height, sct.width) != self._last_shape:
-                self.buffer = np.zeros((sct.height, sct.width, 3), dtype=np.uint8)
-                self._last_shape = (sct.height, sct.width)
-
-            # Direct byte copy using numpy
-            np.copyto(
-                self.buffer,
-                np.frombuffer(sct.rgb, dtype=np.uint8).reshape(
-                    (sct.height, sct.width, 3)
-                ),
+            # Capture and convert frame
+            raw = self.sct.grab(monitor)
+            frame = (
+                np.frombuffer(raw.rgb, dtype=np.uint8)
+                .reshape(raw.height, raw.width, 3)
+                .copy()
             )
-            return self.buffer
+            return frame
 
         except mss.ScreenShotError:
             return None
