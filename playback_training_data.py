@@ -37,26 +37,26 @@ def play_sequence(
         # Add input data as text overlay
         frame_with_text = frame.copy()
         input_text = f"Input: {input_data}"
-        cv2.putText(
-            frame_with_text,
-            input_text,
-            (10, 30),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (255, 255, 255),
-            2,
-        )
-
-        # Add frame counter
-        cv2.putText(
-            frame_with_text,
-            f"Frame: {i}/{len(frames)}",
-            (10, 60),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (255, 255, 255),
-            2,
-        )
+        # cv2.putText(
+        #     frame_with_text,
+        #     input_text,
+        #     (10, 30),
+        #     cv2.FONT_HERSHEY_SIMPLEX,
+        #     1,
+        #     (255, 255, 255),
+        #     2,
+        # )
+        #
+        # # Add frame counter
+        # cv2.putText(
+        #     frame_with_text,
+        #     f"Frame: {i}/{len(frames)}",
+        #     (10, 60),
+        #     cv2.FONT_HERSHEY_SIMPLEX,
+        #     1,
+        #     (255, 255, 255),
+        #     2,
+        # )
 
         # Display the frame
         cv2.imshow("Training Data Playback", frame_with_text)

@@ -11,7 +11,7 @@ class BatchSaver:
         self,
         batch_size: int,
         save_dir: str,
-        target_size=(320, 180),  # Reduced resolution
+        target_size=(480, 270),  # Reduced resolution
         use_grayscale=False,  # Convert to grayscale
         compression_level=1,  # Lower compression for better CPU performance
     ):
