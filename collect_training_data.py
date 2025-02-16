@@ -1,18 +1,19 @@
 from rl_utils.get_current_frame import FrameGrabber
 from rl_utils.controller_reader import ControllerReader
 from rl_utils.data_batcher import BatchSaver
-from rl_utils.get_current_window import get_active_window
+from rl_utils.get_current_window import WindowMonitor
 import time
 
-BATCH_SIZE = 750
-SAVE_DIR = "training_data/"
-FPS_UPDATE_INTERVAL = 0.1  # Update FPS display every second
+BATCH_SIZE = 5000  # Original batch size
+SAVE_DIR = "data/rocket_league/training/"
+FPS_UPDATE_INTERVAL = 1.0  # Update FPS display every second for smoother numbers
 
 
 def main():
     grabber = FrameGrabber()
     controller = ControllerReader()
     batcher = BatchSaver(BATCH_SIZE, SAVE_DIR)
+    window_monitor = WindowMonitor()
 
     print("Starting capture - focus target window to begin...")
 
@@ -22,8 +23,13 @@ def main():
 
     try:
         while True:
-            if get_active_window() == "Alacritty":
+            if window_monitor.get_active_window() == "Rocket League":
                 frame = grabber.capture_frame()
+
+                # Skip processing when no frame is captured
+                if frame is None:
+                    continue
+
                 inputs = controller.get_state_vector()
                 batcher.add_sample(frame, inputs)
 

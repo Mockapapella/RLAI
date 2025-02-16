@@ -6,9 +6,10 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "evdev>=1.9.0",
+    "h5py>=3.12.1",
     "mss>=10.0.0",
     "numpy>=2.2.3",
-    "opencv-python-headless>=4.11.0.86",
+    "opencv-python>=4.11.0.86",
     "torch>=2.6.0",
 ]
 

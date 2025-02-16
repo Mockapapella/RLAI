@@ -139,3 +139,4 @@ cython_debug/
 
 # Custom
 ai/
+data/rocket_league/

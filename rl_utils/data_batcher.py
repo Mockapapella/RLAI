@@ -3,26 +3,36 @@ import time
 import os
 import cv2
 from concurrent.futures import ThreadPoolExecutor
+import h5py
 
 
 class BatchSaver:
-    def __init__(self, batch_size: int, save_dir: str):
+    def __init__(
+        self,
+        batch_size: int,
+        save_dir: str,
+        target_size=(320, 180),  # Reduced resolution
+        use_grayscale=False,  # Convert to grayscale
+        compression_level=1,  # Lower compression for better CPU performance
+    ):
         self.batch_size = batch_size
         self.save_dir = os.path.expanduser(save_dir)
+        self.target_size = target_size
+        self.use_grayscale = use_grayscale
+        self.compression_level = compression_level
         os.makedirs(self.save_dir, exist_ok=True)
 
         self.frames = []
         self.inputs = []
-        self.target_shape = [640, 480]
         self.executor = ThreadPoolExecutor(max_workers=1)
 
     def add_sample(self, frame: np.ndarray, inputs: np.ndarray):
-        # Set target shape from first frame in batch
-        if not self.frames:
-            self.target_shape = frame.shape[:2]  # (height, width)
-        elif frame.shape[:2] != self.target_shape:
-            # Resize frame to match batch dimensions
-            frame = cv2.resize(frame, (self.target_shape[1], self.target_shape[0]))
+        # Resize frame
+        frame = cv2.resize(frame, self.target_size)
+
+        # Convert to grayscale if enabled
+        if self.use_grayscale:
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
 
         self.frames.append(frame)
         self.inputs.append(inputs)
@@ -43,18 +53,42 @@ class BatchSaver:
         # Clear current batch immediately
         self.frames.clear()
         self.inputs.clear()
-        self.target_shape = None  # Reset target shape for next batch
 
         # Submit save task to thread pool
         def save_task():
-            frame_path = os.path.join(self.save_dir, f"{timestamp}_frames.npy")
-            input_path = os.path.join(self.save_dir, f"{timestamp}_inputs.npy")
-
-            # Convert to numpy arrays with consistent shapes
+            # Convert to numpy arrays
             frames_array = np.array(frames_to_save)
             inputs_array = np.array(inputs_to_save)
 
-            np.save(frame_path, frames_array)
-            np.save(input_path, inputs_array)
+            # Save to HDF5 format with compression
+            filename = os.path.join(self.save_dir, f"{timestamp}_batch.h5")
+            with h5py.File(filename, "w") as f:
+                # Create compressed datasets
+                f.create_dataset(
+                    "frames",
+                    data=frames_array,
+                    compression="gzip",
+                    compression_opts=self.compression_level,
+                )
+                f.create_dataset(
+                    "inputs",
+                    data=inputs_array,
+                    compression="gzip",
+                    compression_opts=self.compression_level,
+                )
+
+                # Store metadata
+                f.attrs["timestamp"] = timestamp
+                f.attrs["original_shape"] = frames_array.shape
+                f.attrs["grayscale"] = self.use_grayscale
+                f.attrs["target_size"] = self.target_size
 
         self.executor.submit(save_task)
+
+    def load_batch(self, filename):
+        """Utility method to load a saved batch"""
+        with h5py.File(filename, "r") as f:
+            frames = f["frames"][:]
+            inputs = f["inputs"][:]
+            metadata = dict(f.attrs)
+        return frames, inputs, metadata
