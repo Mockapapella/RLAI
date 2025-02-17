@@ -88,7 +88,7 @@ model.to(device)
 # Lower learning rate and add weight decay for better stability
 optim = AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
 loss_function = nn.BCEWithLogitsLoss()
-epochs = 2
+epochs = 5
 batch_size = 40
 accumulation_steps = 1  # Gradient accumulation steps
 scaler = GradScaler("cuda")  # For mixed precision training
@@ -131,11 +131,15 @@ for epoch in range(epochs):
     print(f"\nEpoch {epoch + 1}/{epochs}")
     print("-" * 50)
 
+    # Shuffle h5 files for each epoch
+    np.random.shuffle(h5_files)
+
     model.train()
     epoch_loss = 0
     batch_count = 0
     total_val_loss = 0
     total_val_batches = 0
+    total_val_accuracy = 0
 
     # Process each file
     for file_idx, (
@@ -224,10 +228,22 @@ for epoch in range(epochs):
                     val_outputs = model(val_X)
                     batch_val_loss = loss_function(val_outputs, val_y)
 
+                    # Calculate accuracy
+                    val_preds = torch.sigmoid(val_outputs) >= 0.5
+                    batch_accuracy = (val_preds == val_y).float().mean().item()
+
                 total_val_loss += batch_val_loss.item()
                 total_val_batches += 1
+                total_val_accuracy = (
+                    batch_accuracy
+                    if total_val_batches == 1
+                    else total_val_accuracy
+                    * (total_val_batches - 1)
+                    / total_val_batches
+                    + batch_accuracy / total_val_batches
+                )
 
-                del val_X, val_y, val_outputs
+                del val_X, val_y, val_outputs, val_preds
                 torch.cuda.empty_cache()
 
         # File summary
@@ -240,6 +256,7 @@ for epoch in range(epochs):
         )
 
         print(f"\nFile Summary:")
+        print(f"Validation Accuracy: {total_val_accuracy:.2%}")
         print(f"File processing time: {format_time(file_time)}")
         print(f"Training time: {format_time(file_time - val_time)}")
         print(f"Validation time: {format_time(val_time)}")
@@ -259,14 +276,15 @@ for epoch in range(epochs):
     print(f"Duration: {format_time(epoch_time)}")
     print(f"Training Loss: {avg_epoch_loss:.4f}")
     print(f"Validation Loss: {avg_val_loss:.4f}")
+    print(f"Validation Accuracy: {total_val_accuracy:.2%}")
     print(f"Batches Processed: {batch_count}")
     print(f"Average Time per Batch: {epoch_time / batch_count:.2f}s")
     print("\nMemory Status:")
     get_ram_usage()
 
-    if epoch == 0:
-        model.freeze_input_reduction()
-        print("\nInput reduction layer frozen for memory optimization")
+    # if epoch == 0:
+    #     model.freeze_input_reduction()
+    #     print("\nInput reduction layer frozen for memory optimization")
 
 # Training summary
 total_time = time() - total_start_time
