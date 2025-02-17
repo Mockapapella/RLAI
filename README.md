@@ -1,8 +1,8 @@
 # RLAI
 
-Carlaisle is an AI that has learned to play Rocket League via Deep Learning.
+RLAI is an AI that has learned to play Rocket League via Deep Learning.
 
-Carlaisle's process:
+RLAI's process:
 
 [0, 0], GAME START
 [0, 0], ROUND START

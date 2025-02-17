@@ -141,3 +141,4 @@ cython_debug/
 ai/
 data/rocket_league/
 rocket_model.pth
+runs/
