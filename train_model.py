@@ -13,6 +13,8 @@ import gc
 from time import time
 from datetime import datetime, timedelta
 
+torch.multiprocessing.set_sharing_strategy("file_system")
+
 
 def format_time(seconds):
     return str(timedelta(seconds=int(seconds)))
@@ -70,8 +72,9 @@ def split_batch(frames, inputs, train_ratio=0.8, max_samples=5000):
 def batch_generator(h5_files):
     for h5_file in h5_files:
         with h5py.File(h5_file, "r") as f:
-            frames, inputs = f["frames"][:], f["inputs"][:]
-            yield h5_file, split_batch(frames, inputs)
+            frames = f["frames"][:]
+            inputs = f["inputs"][:]
+        yield h5_file, split_batch(frames, inputs)
 
 
 # Get files
@@ -100,7 +103,7 @@ dataloader_kwargs = {
     "shuffle": True,
     "pin_memory": True,
     "num_workers": 4,
-    "persistent_workers": True,
+    "persistent_workers": False,
 }
 
 # Log training configuration
