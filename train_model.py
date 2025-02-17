@@ -12,8 +12,10 @@ from torch.utils.data import TensorDataset, DataLoader
 import gc
 from time import time
 from datetime import datetime, timedelta
+from torch.utils.tensorboard import SummaryWriter
 
 torch.multiprocessing.set_sharing_strategy("file_system")
+writer = SummaryWriter("runs/rocket_league/")
 
 
 def format_time(seconds):
@@ -193,6 +195,22 @@ for epoch in range(epochs):
             batch_count += 1
             file_batch_count += 1
 
+            # Log training metrics to tensorboard
+            global_step = epoch * len(h5_files) * len(train_loader) + batch_count
+            writer.add_scalar("Training/Loss", loss.item(), global_step)
+            writer.add_scalar(
+                "Training/Learning_Rate", optim.param_groups[0]["lr"], global_step
+            )
+
+            # Log gradients every 100 batches
+            if batch_count % 10 == 0:
+                for name, param in model.named_parameters():
+                    if param.grad is not None:
+                        writer.add_histogram(
+                            f"Gradients/{name}", param.grad, global_step
+                        )
+                        writer.add_histogram(f"Weights/{name}", param, global_step)
+
             # Batch logging
             if batch_count % 10 == 0:
                 batch_time = time() - batch_start_time
@@ -257,6 +275,19 @@ for epoch in range(epochs):
             if total_val_batches > 0
             else float("inf")
         )
+
+        # Log validation metrics to tensorboard
+        file_step = epoch * len(h5_files) + file_idx
+        writer.add_scalar("Validation/Loss", file_val_loss, file_step)
+        writer.add_scalar("Validation/Accuracy", total_val_accuracy, file_step)
+
+        # Log memory usage
+        memory_allocated = (
+            torch.cuda.memory_allocated(device) / 1024**3
+        )  # Convert to GB
+        memory_reserved = torch.cuda.memory_reserved(device) / 1024**3  # Convert to GB
+        writer.add_scalar("System/GPU_Memory_Allocated_GB", memory_allocated, file_step)
+        writer.add_scalar("System/GPU_Memory_Reserved_GB", memory_reserved, file_step)
 
         print(f"\nFile Summary:")
         print(f"Validation Accuracy: {total_val_accuracy:.2%}")
