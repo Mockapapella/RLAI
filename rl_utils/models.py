@@ -1,6 +1,4 @@
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from torch.amp import autocast
 from torch.utils.checkpoint import checkpoint_sequential
 
@@ -10,10 +8,7 @@ class RocketNet(nn.Module):
         super(RocketNet, self).__init__()
         # Input dimension reduction layer
         self.input_reduction = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(480 * 270 * 3, 1024),
-            nn.ReLU(),
-            nn.Dropout(0.5)
+            nn.Flatten(), nn.Linear(480 * 270 * 3, 1024), nn.ReLU(), nn.Dropout(0.5)
         )
 
         # Main network with slimmer layers
@@ -25,7 +20,7 @@ class RocketNet(nn.Module):
             nn.Dropout(0.3),
             nn.Linear(256, 128),
             nn.ReLU(),
-            nn.Linear(128, 19)
+            nn.Linear(128, 19),
         )
 
         self._initialize_weights()
@@ -42,14 +37,11 @@ class RocketNet(nn.Module):
 
     def forward(self, x):
         # Enable automatic mixed precision
-        with autocast('cuda'):
+        with autocast("cuda"):
             x = self.input_reduction(x)
             # Apply gradient checkpointing in forward pass with use_reentrant=False
             x = checkpoint_sequential(
-                self.main,
-                segments=3,
-                input=x,
-                use_reentrant=False
+                self.main, segments=3, input=x, use_reentrant=False
             )
             return x
 

@@ -2,27 +2,24 @@ import h5py
 import glob
 import os
 import numpy as np
-from typing import Tuple
 import random
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.optim import AdamW, optimizer
+from torch.optim import AdamW
 from torch.amp import autocast, GradScaler
 from rl_utils.models import RocketNet
 from torch.utils.data import TensorDataset, DataLoader
 import gc
+from time import time
+from datetime import datetime, timedelta
 
 
-"""
-- [X] Load data in memory safe way
-- [X] Shuffle data that preserves frame:input relationship
-- [X] Split training data into an 80/20 split
-- [X] Train model
-- [X] Validate model
-- [X] GOTO shuffle data for N epochs
+def format_time(seconds):
+    return str(timedelta(seconds=int(seconds)))
 
-"""
+
+def format_percentage(current, total):
+    return f"{(current / total * 100):.1f}%"
 
 
 def get_ram_usage():
@@ -46,26 +43,43 @@ def get_ram_usage():
     print(f"RAM Usage: {used_percent:.1f}%")
 
 
+def split_batch(frames, inputs, train_ratio=0.8, max_samples=5000):
+    """Split a batch into train/val sets with optional subsampling"""
+    # Determine total samples to use
+    n_samples = min(len(frames), max_samples) if max_samples else len(frames)
+
+    # Generate random indices for the full dataset
+    indices = np.random.permutation(len(frames))[:n_samples]
+
+    # Calculate split point
+    split_idx = int(n_samples * train_ratio)
+
+    # Split indices
+    train_indices = indices[:split_idx]
+    val_indices = indices[split_idx:]
+
+    # Return split data
+    return (
+        frames[train_indices],
+        inputs[train_indices],
+        frames[val_indices],
+        inputs[val_indices],
+    )
+
+
 def batch_generator(h5_files):
     for h5_file in h5_files:
         with h5py.File(h5_file, "r") as f:
-            yield f["frames"][:], f["inputs"][:]
+            frames, inputs = f["frames"][:], f["inputs"][:]
+            yield h5_file, split_batch(frames, inputs)
 
 
-def get_test_data(frames, inputs):
-    X, y = frames[: round(len(frames) * 0.8)], inputs[: round(len(frames) * 0.8)]
-    X_test, y_test = (
-        frames[round(len(frames) * 0.8) :],
-        inputs[round(len(frames) * 0.8) :],
-    )
-
-    return X, y, X_test, y_test
-
-
+# Get files
 pattern = os.path.join("data/rocket_league/training/", "*_batch.h5")
 h5_files = glob.glob(pattern)
-# print("=" * 10 + " STARTING TRAINING " + "=" * 10)
-# get_ram_usage()
+
+# Set random seed for reproducibility
+random.seed(42)
 
 # Training configuration
 model = RocketNet()
@@ -75,8 +89,8 @@ model.to(device)
 optim = AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
 loss_function = nn.BCEWithLogitsLoss()
 epochs = 2
-batch_size = 8
-accumulation_steps = 4  # Gradient accumulation steps
+batch_size = 40
+accumulation_steps = 1  # Gradient accumulation steps
 scaler = GradScaler("cuda")  # For mixed precision training
 max_grad_norm = 1.0  # For gradient clipping
 
@@ -89,104 +103,183 @@ dataloader_kwargs = {
     "persistent_workers": True,
 }
 
-print("=" * 10 + " STARTING TRAINING " + "=" * 10)
+# Log training configuration
+print("\n" + "=" * 50)
+print("TRAINING CONFIGURATION")
+print("=" * 50)
+print(f"Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+print(f"Model: {model.__class__.__name__}")
+print(
+    f"Optimizer: AdamW (lr={optim.param_groups[0]['lr']}, weight_decay={optim.param_groups[0]['weight_decay']})"
+)
+print(f"Loss Function: {loss_function.__class__.__name__}")
+print(f"Epochs: {epochs}")
+print(f"Batch Size: {batch_size}")
+print(f"Gradient Accumulation Steps: {accumulation_steps}")
+print(f"Effective Batch Size: {batch_size * accumulation_steps}")
+print(f"Max Gradient Norm: {max_grad_norm}")
+print(f"Device: {device}")
+print(f"Number of Training Files: {len(h5_files)}")
+print("\nInitial Memory Status:")
+get_ram_usage()
+print("=" * 50 + "\n")
 
 # Training loop
+total_start_time = time()
 for epoch in range(epochs):
+    epoch_start_time = time()
+    print(f"\nEpoch {epoch + 1}/{epochs}")
+    print("-" * 50)
+
     model.train()
     epoch_loss = 0
     batch_count = 0
+    total_val_loss = 0
+    total_val_batches = 0
 
-    for num, (frames, inputs) in enumerate(batch_generator(h5_files)):
-        X, y, X_test, y_test = get_test_data(frames, inputs)
+    # Process each file
+    for file_idx, (
+        h5_file,
+        (train_frames, train_inputs, val_frames, val_inputs),
+    ) in enumerate(batch_generator(h5_files)):
+        file_start_time = time()
+        n_samples = len(train_frames) + len(val_frames)
 
-        # Create datasets without moving to GPU
-        train_dataset = TensorDataset(torch.Tensor(X), torch.Tensor(y))
-        train_loader = DataLoader(train_dataset, **dataloader_kwargs)
+        print(f"\nFile {file_idx + 1}/{len(h5_files)}: {os.path.basename(h5_file)}")
+        print(f"Total samples: {n_samples}")
+        print(f"Training samples: {len(train_frames)}")
+        print(f"Validation samples: {len(val_frames)}")
 
-        # Create validation dataset with larger batch size
-        test_dataset = TensorDataset(torch.Tensor(X_test), torch.Tensor(y_test))
-        test_loader = DataLoader(
-            test_dataset, batch_size=batch_size * 2, pin_memory=True
+        # Training phase
+        train_dataset = TensorDataset(
+            torch.Tensor(train_frames), torch.Tensor(train_inputs)
         )
+        train_loader = DataLoader(train_dataset, **dataloader_kwargs)
+        file_batch_count = 0
 
         for batch_X, batch_y in train_loader:
+            batch_start_time = time()
             batch_X = batch_X.to(device)
             batch_y = batch_y.to(device)
 
-            # Mixed precision training with proper context manager
+            # Mixed precision training
             with autocast("cuda"):
                 outputs = model(batch_X)
                 loss = loss_function(outputs, batch_y)
-                loss = (
-                    loss / accumulation_steps
-                )  # Normalize loss for gradient accumulation
+                loss = loss / accumulation_steps
 
-                # Check for NaN loss
                 if torch.isnan(loss):
                     print(f"NaN loss detected at batch {batch_count}. Skipping batch.")
                     optim.zero_grad()
                     continue
 
-                # Gradient accumulation and scaling
                 scaler.scale(loss).backward()
 
                 if (batch_count + 1) % accumulation_steps == 0:
-                    # Unscale gradients for clipping
                     scaler.unscale_(optim)
-                    # Clip gradients
                     torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
-                    # Step optimizer and scaler
                     scaler.step(optim)
                     scaler.update()
                     optim.zero_grad()
 
             epoch_loss += loss.item() * accumulation_steps
             batch_count += 1
+            file_batch_count += 1
 
+            # Batch logging
             if batch_count % 10 == 0:
-                print(f"Epoch: {epoch}, batch: {batch_count}, loss: {loss.item():.4f}")
+                batch_time = time() - batch_start_time
+                batches_remaining = len(train_loader) - file_batch_count
+                eta = batch_time * batches_remaining
+
+                print(
+                    f"Batch: {file_batch_count}/{len(train_loader)} "
+                    f"({format_percentage(file_batch_count, len(train_loader))}) | "
+                    f"Loss: {loss.item():.4f} | "
+                    f"Time/batch: {batch_time:.2f}s | "
+                    f"File ETA: {format_time(eta)}"
+                )
 
             # Memory cleanup
             del batch_X, batch_y, outputs
             torch.cuda.empty_cache()
             gc.collect()
 
-        # Validation step
+        # Validation phase
         model.eval()
+        val_start_time = time()
         with torch.no_grad():
-            val_loss = 0
-            val_batches = 0
+            val_dataset = TensorDataset(
+                torch.Tensor(val_frames), torch.Tensor(val_inputs)
+            )
+            val_loader = DataLoader(
+                val_dataset, batch_size=batch_size * 2, pin_memory=True
+            )
 
-            for test_X, test_y in test_loader:
-                test_X = test_X.to(device)
-                test_y = test_y.to(device)
+            for val_X, val_y in val_loader:
+                val_X = val_X.to(device)
+                val_y = val_y.to(device)
 
                 with autocast("cuda"):
-                    test_outputs = model(test_X)
-                    test_loss = loss_function(test_outputs, test_y)
+                    val_outputs = model(val_X)
+                    batch_val_loss = loss_function(val_outputs, val_y)
 
-                val_loss += test_loss.item()
-                val_batches += 1
+                total_val_loss += batch_val_loss.item()
+                total_val_batches += 1
 
-                # Memory cleanup
-                del test_X, test_y, test_outputs
+                del val_X, val_y, val_outputs
                 torch.cuda.empty_cache()
 
-            avg_val_loss = val_loss / val_batches
-            print(f"Validation Loss: {avg_val_loss:.4f}")
+        # File summary
+        file_time = time() - file_start_time
+        val_time = time() - val_start_time
+        file_val_loss = (
+            total_val_loss / total_val_batches
+            if total_val_batches > 0
+            else float("inf")
+        )
+
+        print(f"\nFile Summary:")
+        print(f"File processing time: {format_time(file_time)}")
+        print(f"Training time: {format_time(file_time - val_time)}")
+        print(f"Validation time: {format_time(val_time)}")
+        print(f"Validation Loss: {file_val_loss:.4f}")
 
         model.train()
 
-    # Print epoch summary
-    avg_epoch_loss = epoch_loss / batch_count
-    print(f"Epoch {epoch} completed. Average Loss: {avg_epoch_loss:.4f}")
+    # Epoch summary
+    epoch_time = time() - epoch_start_time
+    avg_epoch_loss = epoch_loss / batch_count if batch_count > 0 else float("inf")
+    avg_val_loss = (
+        total_val_loss / total_val_batches if total_val_batches > 0 else float("inf")
+    )
 
-    # Freeze input reduction layer after first epoch to save memory
+    print(f"\nEpoch {epoch + 1} Summary:")
+    print("-" * 50)
+    print(f"Duration: {format_time(epoch_time)}")
+    print(f"Training Loss: {avg_epoch_loss:.4f}")
+    print(f"Validation Loss: {avg_val_loss:.4f}")
+    print(f"Batches Processed: {batch_count}")
+    print(f"Average Time per Batch: {epoch_time / batch_count:.2f}s")
+    print("\nMemory Status:")
+    get_ram_usage()
+
     if epoch == 0:
         model.freeze_input_reduction()
-        print("Input reduction layer frozen for memory optimization")
+        print("\nInput reduction layer frozen for memory optimization")
+
+# Training summary
+total_time = time() - total_start_time
+print("\n" + "=" * 50)
+print("TRAINING COMPLETE")
+print("=" * 50)
+print(f"Total Duration: {format_time(total_time)}")
+print(f"Average Time per Epoch: {format_time(total_time / epochs)}")
+print(f"End Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+print("Final Memory Status:")
+get_ram_usage()
+print("=" * 50)
 
 # Save the model
 torch.save(model.state_dict(), "rocket_model.pth")
-print("Model saved successfully")
+print("\nModel saved successfully")
