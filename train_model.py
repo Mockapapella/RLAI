@@ -47,6 +47,53 @@ def get_ram_usage():
     print(f"RAM Usage: {used_percent:.1f}%")
 
 
+def compute_loss(outputs, targets):
+    # Split the outputs and targets
+    binary_logits = outputs[:, :11]  # First 11 are binary controls
+    analog_values = outputs[:, 11:]  # Last 8 are analog controls
+
+    binary_targets = targets[:, :11]
+    analog_targets = targets[:, 11:]
+
+    # Add epsilon for numerical stability
+    eps = 1e-7
+
+    # Clip extremely large logits to prevent exp overflow
+    binary_logits = torch.clamp(binary_logits, -88.0, 88.0)
+
+    # Binary loss with BCE with logits - with safeguards
+    binary_loss = torch.nn.functional.binary_cross_entropy_with_logits(
+        binary_logits, binary_targets, reduction="none"
+    )
+    # Handle any NaN values
+    binary_loss = torch.where(
+        torch.isnan(binary_loss), torch.zeros_like(binary_loss), binary_loss
+    )
+    binary_loss = binary_loss.mean()
+
+    # Ensure analog values are in valid range
+    analog_values = torch.clamp(analog_values, eps, 1.0 - eps)
+
+    # Analog loss with MSE - with safeguards
+    analog_loss = torch.nn.functional.mse_loss(
+        analog_values, analog_targets, reduction="none"
+    )
+    # Handle any NaN values
+    analog_loss = torch.where(
+        torch.isnan(analog_loss), torch.zeros_like(analog_loss), analog_loss
+    )
+    analog_loss = analog_loss.mean()
+
+    # Total loss with weighting
+    total_loss = binary_loss + 2.0 * analog_loss
+
+    # Final safety check
+    if torch.isnan(total_loss) or torch.isinf(total_loss):
+        return torch.tensor(0.1, device=total_loss.device, requires_grad=True)
+
+    return total_loss
+
+
 def split_batch(frames, inputs, train_ratio=0.8, max_samples=5000):
     """Split a batch into train/val sets with optional subsampling"""
     # Determine total samples to use
@@ -91,13 +138,15 @@ model = RocketNet()
 device = torch.device("cuda")
 model.to(device)
 # Lower learning rate and add weight decay for better stability
-optim = AdamW(model.parameters(), lr=1e-4, weight_decay=1e-4)
-loss_function = nn.BCEWithLogitsLoss()
-epochs = 5
-batch_size = 40
+optim = AdamW(model.parameters(), lr=1e-3, weight_decay=1e-4)
+scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+    optim, mode="min", factor=0.5, patience=2, threshold=0.01, min_lr=1e-6, verbose=True
+)
+epochs = 20
+batch_size = 500
 accumulation_steps = 1  # Gradient accumulation steps
 scaler = GradScaler("cuda")  # For mixed precision training
-max_grad_norm = 1.0  # For gradient clipping
+max_grad_norm = 0.1
 
 # DataLoader configuration
 dataloader_kwargs = {
@@ -117,7 +166,7 @@ print(f"Model: {model.__class__.__name__}")
 print(
     f"Optimizer: AdamW (lr={optim.param_groups[0]['lr']}, weight_decay={optim.param_groups[0]['weight_decay']})"
 )
-print(f"Loss Function: {loss_function.__class__.__name__}")
+print("Loss Function: Custom")
 print(f"Epochs: {epochs}")
 print(f"Batch Size: {batch_size}")
 print(f"Gradient Accumulation Steps: {accumulation_steps}")
@@ -171,25 +220,29 @@ for epoch in range(epochs):
             batch_X = batch_X.to(device)
             batch_y = batch_y.to(device)
 
-            # Mixed precision training
-            with autocast("cuda"):
-                outputs = model(batch_X)
-                loss = loss_function(outputs, batch_y)
-                loss = loss / accumulation_steps
+            outputs = model(batch_X)
+            if torch.isnan(outputs).any() or torch.isinf(outputs).any():
+                print(
+                    f"NaN/Inf in outputs detected at batch {batch_count}. Skipping batch."
+                )
+                optim.zero_grad()
+                continue
+            loss = compute_loss(outputs, batch_y)
+            loss = loss / accumulation_steps
 
-                if torch.isnan(loss):
-                    print(f"NaN loss detected at batch {batch_count}. Skipping batch.")
-                    optim.zero_grad()
-                    continue
+            if torch.isnan(loss):
+                print(f"NaN loss detected at batch {batch_count}. Skipping batch.")
+                optim.zero_grad()
+                continue
 
-                scaler.scale(loss).backward()
+            scaler.scale(loss).backward()
 
-                if (batch_count + 1) % accumulation_steps == 0:
-                    scaler.unscale_(optim)
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
-                    scaler.step(optim)
-                    scaler.update()
-                    optim.zero_grad()
+            if (batch_count + 1) % accumulation_steps == 0:
+                scaler.unscale_(optim)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+                scaler.step(optim)
+                scaler.update()
+                optim.zero_grad()
 
             epoch_loss += loss.item() * accumulation_steps
             batch_count += 1
@@ -202,17 +255,13 @@ for epoch in range(epochs):
                 "Training/Learning_Rate", optim.param_groups[0]["lr"], global_step
             )
 
-            # Log gradients every 100 batches
-            if batch_count % 10 == 0:
+            if batch_count % 1 == 0:
                 for name, param in model.named_parameters():
                     if param.grad is not None:
                         writer.add_histogram(
                             f"Gradients/{name}", param.grad, global_step
                         )
                         writer.add_histogram(f"Weights/{name}", param, global_step)
-
-            # Batch logging
-            if batch_count % 10 == 0:
                 batch_time = time() - batch_start_time
                 batches_remaining = len(train_loader) - file_batch_count
                 eta = batch_time * batches_remaining
@@ -226,9 +275,9 @@ for epoch in range(epochs):
                 )
 
             # Memory cleanup
-            del batch_X, batch_y, outputs
-            torch.cuda.empty_cache()
-            gc.collect()
+            # del batch_X, batch_y, outputs
+            # torch.cuda.empty_cache()
+            # gc.collect()
 
         # Validation phase
         model.eval()
@@ -237,21 +286,18 @@ for epoch in range(epochs):
             val_dataset = TensorDataset(
                 torch.Tensor(val_frames), torch.Tensor(val_inputs)
             )
-            val_loader = DataLoader(
-                val_dataset, batch_size=batch_size * 2, pin_memory=True
-            )
+            val_loader = DataLoader(val_dataset, batch_size=batch_size, pin_memory=True)
 
             for val_X, val_y in val_loader:
                 val_X = val_X.to(device)
                 val_y = val_y.to(device)
 
-                with autocast("cuda"):
-                    val_outputs = model(val_X)
-                    batch_val_loss = loss_function(val_outputs, val_y)
+                val_outputs = model(val_X)
+                batch_val_loss = compute_loss(val_outputs, val_y)
 
-                    # Calculate accuracy
-                    val_preds = torch.sigmoid(val_outputs) >= 0.5
-                    batch_accuracy = (val_preds == val_y).float().mean().item()
+                # Calculate accuracy
+                val_preds = torch.sigmoid(val_outputs) >= 0.5
+                batch_accuracy = (val_preds == val_y).float().mean().item()
 
                 total_val_loss += batch_val_loss.item()
                 total_val_batches += 1
@@ -264,8 +310,8 @@ for epoch in range(epochs):
                     + batch_accuracy / total_val_batches
                 )
 
-                del val_X, val_y, val_outputs, val_preds
-                torch.cuda.empty_cache()
+                # del val_X, val_y, val_outputs, val_preds
+                # torch.cuda.empty_cache()
 
         # File summary
         file_time = time() - file_start_time
@@ -297,6 +343,7 @@ for epoch in range(epochs):
         print(f"Validation Loss: {file_val_loss:.4f}")
 
         model.train()
+        scheduler.step(file_val_loss)
 
     # Epoch summary
     epoch_time = time() - epoch_start_time

@@ -1,4 +1,5 @@
 import torch.nn as nn
+import torch
 from torch.amp import autocast
 from torch.utils.checkpoint import checkpoint_sequential
 
@@ -11,41 +12,39 @@ class RocketNet(nn.Module):
             nn.Flatten(), nn.Linear(480 * 270 * 3, 1024), nn.ReLU(), nn.Dropout(0.5)
         )
 
-        # Main network with slimmer layers
-        self.main = nn.Sequential(
+        # Shared backbone
+        self.backbone = nn.Sequential(
             nn.Linear(1024, 512),
             nn.ReLU(),
+            nn.Dropout(0.2),
             nn.Linear(512, 256),
             nn.ReLU(),
-            nn.Dropout(0.3),
+            nn.Dropout(0.2),
             nn.Linear(256, 128),
             nn.ReLU(),
-            nn.Linear(128, 19),
         )
 
-        self._initialize_weights()
+        # Binary controls (buttons) - no activation
+        self.binary_head = nn.Linear(128, 11)
+
+        # Analog controls - with sigmoid activation built-in
+        self.analog_head = nn.Sequential(nn.Linear(128, 8), nn.Sigmoid())
 
     def _initialize_weights(self):
-        """Initialize model weights for better training stability"""
-        for module in self.modules():
-            if isinstance(module, nn.Linear):
-                # Use a smaller initialization scale for better stability
-                nn.init.kaiming_normal_(module.weight, a=0.1)
-                if module.bias is not None:
-                    # Initialize biases to small positive values for ReLU
-                    nn.init.uniform_(module.bias, 0.01, 0.1)
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, a=0.01)
+                if m.bias is not None:
+                    nn.init.constant_(m.bias, 0.01)
 
     def forward(self, x):
-        # Enable automatic mixed precision
-        with autocast("cuda"):
-            x = self.input_reduction(x)
-            # Apply gradient checkpointing in forward pass with use_reentrant=False
-            x = checkpoint_sequential(
-                self.main, segments=3, input=x, use_reentrant=False
-            )
-            return x
+        # No autocast in forward pass
+        x = self.input_reduction(x)
+        features = self.backbone(x)
 
-    def freeze_input_reduction(self):
-        """Freeze input reduction layers to save memory after initial training"""
-        for param in self.input_reduction.parameters():
-            param.requires_grad = False
+        # Get outputs from both heads
+        binary_out = self.binary_head(features)
+        analog_out = self.analog_head(features)
+
+        # Concatenate results
+        return torch.cat([binary_out, analog_out], dim=1)

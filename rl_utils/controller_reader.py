@@ -95,12 +95,12 @@ class ControllerReader:
     def get_active_buttons(self):
         """Returns a list of currently pressed button names"""
         button_names = {
-            ecodes.BTN_SOUTH: "A",
-            ecodes.BTN_EAST: "B",
-            ecodes.BTN_NORTH: "Y",
-            ecodes.BTN_WEST: "X",
-            ecodes.BTN_TL: "LB",
-            ecodes.BTN_TR: "RB",
+            ecodes.BTN_SOUTH: "BTN_SOUTH",
+            ecodes.BTN_EAST: "BTN_EAST",
+            ecodes.BTN_NORTH: "BTN_NORTH",
+            ecodes.BTN_WEST: "BTN_WEST",
+            ecodes.BTN_TL: "BUMPER_RIGHT",
+            ecodes.BTN_TR: "BUMPER_LEFT",
             ecodes.BTN_SELECT: "Select",
             ecodes.BTN_START: "Start",
             ecodes.BTN_MODE: "Mode",
@@ -142,10 +142,6 @@ def main():
         while True:
             # Update controller state
             controller.get_state_vector()
-
-            # Get active buttons and axis values
-            active_buttons = controller.get_active_buttons()
-            axis_states = controller.get_axis_states()
 
             # Clear the line and print current state
             print("\r" + " " * 100, end="", flush=True)  # Clear line

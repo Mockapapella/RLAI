@@ -10,10 +10,14 @@ dependencies = [
     "mss>=10.0.0",
     "numpy>=2.2.3",
     "opencv-python>=4.11.0.86",
+    "tensorboard>=2.19.0",
     "torch>=2.6.0",
+    "torchvision>=0.21.0",
 ]
 
 [dependency-groups]
 dev = [
     "debugpy>=1.8.12",
+    "matplotlib>=3.10.0",
+    "pyqt6>=6.8.1",
 ]
