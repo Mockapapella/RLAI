@@ -11,6 +11,7 @@ FPS_UPDATE_INTERVAL = 1.0  # Update FPS display every second for smoother number
 
 # Model definition
 model = RocketNet()
+model.load_state_dict(torch.load("rocket_model_best.pth"))
 model.eval()
 device = "cuda"
 model.to(device)

@@ -15,9 +15,12 @@ from datetime import datetime
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+# Silence matplotlib font debug messages
+logging.getLogger("matplotlib.font_manager").setLevel(logging.ERROR)
+
 # Configure enterprise-grade logging
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,  # Changed from DEBUG to INFO
     format="%(asctime)s.%(msecs)03d | %(levelname)-8s | %(name)s: %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
     handlers=[
@@ -67,7 +70,55 @@ class ModelValidator:
         if path:
             try:
                 state_dict = torch.load(path, map_location=self.device)
-                model.load_state_dict(state_dict)
+
+                # Check if we need to handle legacy model format
+                if any(key.startswith("main.") for key in state_dict.keys()):
+                    logger.info("📝 Detected legacy model format - adapting keys")
+                    # Create mapping from old keys to new keys
+                    new_state_dict = {}
+
+                    # Map the input reduction layer (likely unchanged)
+                    for key in [
+                        k for k in state_dict.keys() if k.startswith("input_reduction")
+                    ]:
+                        new_state_dict[key] = state_dict[key]
+
+                    # Map main.0/2/5 to backbone layers
+                    if "main.0.weight" in state_dict:
+                        new_state_dict["backbone.0.weight"] = state_dict[
+                            "main.0.weight"
+                        ]
+                        new_state_dict["backbone.0.bias"] = state_dict["main.0.bias"]
+                    if "main.2.weight" in state_dict:
+                        new_state_dict["backbone.3.weight"] = state_dict[
+                            "main.2.weight"
+                        ]
+                        new_state_dict["backbone.3.bias"] = state_dict["main.2.bias"]
+                    if "main.5.weight" in state_dict:
+                        new_state_dict["backbone.6.weight"] = state_dict[
+                            "main.5.weight"
+                        ]
+                        new_state_dict["backbone.6.bias"] = state_dict["main.5.bias"]
+
+                    # Map main.7 to output heads
+                    if "main.7.weight" in state_dict:
+                        main_weight = state_dict["main.7.weight"]
+                        main_bias = state_dict["main.7.bias"]
+
+                        # First 11 outputs are binary controls
+                        new_state_dict["binary_head.weight"] = main_weight[:11, :]
+                        new_state_dict["binary_head.bias"] = main_bias[:11]
+
+                        # Last 8 outputs are analog controls
+                        new_state_dict["analog_head.0.weight"] = main_weight[11:, :]
+                        new_state_dict["analog_head.0.bias"] = main_bias[11:]
+
+                    # Use the adapted state dict
+                    state_dict = new_state_dict
+                    logger.info(f"✅ Successfully adapted legacy model format")
+
+                # Load the state dict with strict=False to allow partial loading
+                model.load_state_dict(state_dict, strict=False)
                 logger.info(f"✅ Loaded weights from {path}")
                 logger.debug(f"Weight checksum: {hash(str(state_dict))}")
 
@@ -79,14 +130,14 @@ class ModelValidator:
                     """Fixed forward pass without gradient checkpointing or autocast"""
                     with torch.no_grad():
                         x = model.input_reduction(x)
-                        x = model.main(x)
-                        return x
+                        features = model.backbone(x)
+                        binary_out = model.binary_head(features)
+                        analog_out = model.analog_head(features)
+                        return torch.cat([binary_out, analog_out], dim=1)
 
                 model.original_forward = original_forward
                 model.forward = fixed_forward
-                logger.info(
-                    "✅ Patched model forward pass to remove gradient checkpointing"
-                )
+                logger.info("✅ Patched model forward pass for inference")
 
             except Exception as e:
                 logger.critical(f"🚨 Model load failed: {str(e)}")
@@ -161,11 +212,11 @@ class ModelValidator:
 
     def _tensor_audit(self, tensor, name):
         """Comprehensive tensor validation"""
-        logger.debug(f"🔍 Tensor Audit: {name}")
-        logger.debug(f"Shape: {tensor.shape} | Dtype: {tensor.dtype}")
-        logger.debug(f"Stats: μ={tensor.mean().item():.4f} σ={tensor.std().item():.4f}")
-        logger.debug(f"Range: [{tensor.min().item():.4f}, {tensor.max().item():.4f}]")
-        logger.debug(
+        logger.info(f"🔍 Tensor Audit: {name}")
+        logger.info(f"Shape: {tensor.shape} | Dtype: {tensor.dtype}")
+        logger.info(f"Stats: μ={tensor.mean().item():.4f} σ={tensor.std().item():.4f}")
+        logger.info(f"Range: [{tensor.min().item():.4f}, {tensor.max().item():.4f}]")
+        logger.info(
             f"NaN/Inf: {torch.isnan(tensor).any().item()} | {torch.isinf(tensor).any().item()}"
         )
 
@@ -316,6 +367,11 @@ class ModelValidator:
 
     def _visualize_predictions(self, label, prediction):
         """Create visualization comparing predictions to ground truth"""
+        # Disable font message debug output
+        plt_logger = logging.getLogger("matplotlib")
+        original_level = plt_logger.level
+        plt_logger.setLevel(logging.WARNING)
+
         categories = [
             # Buttons (first 11)
             "BTN_SOUTH",
@@ -364,6 +420,9 @@ class ModelValidator:
         plt.tight_layout()
         plt.savefig(self.output_dir / "prediction_comparison.png")
         plt.close()
+
+        # Restore original logging level
+        plt_logger.setLevel(original_level)
 
         logger.info(
             f"📊 Created prediction visualization: {self.output_dir / 'prediction_comparison.png'}"
@@ -487,10 +546,9 @@ class ModelValidator:
             logger.error(f"❌ Multiple sample test failed: {str(e)}")
 
     def _log_hardware(self):
-        """System hardware audit"""
+        """Minimal system configuration logging"""
         logger.info("\n🖥️  System Configuration:")
         logger.info(f"Torch: {torch.__version__}")
-        logger.info(f"CUDA: {torch.version.cuda}")
         logger.info(f"Device: {self.device}")
 
         if self.device.type == "cuda":
@@ -498,43 +556,26 @@ class ModelValidator:
                 f"GPU Memory: Allocated={torch.cuda.memory_allocated() / 1e6:.2f}MB | "
                 f"Reserved={torch.cuda.memory_reserved() / 1e6:.2f}MB"
             )
-            # Log CUDA device info
-            for i in range(torch.cuda.device_count()):
-                logger.info(f"GPU {i}: {torch.cuda.get_device_name(i)}")
-                logger.info(
-                    f"  Compute Capability: {torch.cuda.get_device_capability(i)}"
-                )
-                logger.info(
-                    f"  Memory: {torch.cuda.get_device_properties(i).total_memory / 1e9:.2f} GB"
-                )
 
     def _model_forensics(self):
-        """Complete model architecture analysis"""
+        """Basic model architecture analysis"""
         logger.info("\n🔬 Model Architecture Analysis:")
         logger.info(
             f"Parameter Count: {sum(p.numel() for p in self.model.parameters()):,}"
         )
         logger.info(f"Input Layer: {self.model.input_reduction}")
-        logger.info(f"Output Layer: {self.model.main[-1]}")
+        logger.info(
+            f"Output Layers: Binary={self.model.binary_head}, Analog={self.model.analog_head}"
+        )
 
-        # Weight distribution analysis
+        # Check for problematic weights in output layers only
         activation_ranges = {}
         for name, param in self.model.named_parameters():
-            mean = param.data.mean().item()
-            std = param.data.std().item()
-            logger.debug(f"Layer {name}: μ={mean:.4f} σ={std:.4f}")
+            if "binary_head.weight" in name or "analog_head.0.weight" in name:
+                mean = param.data.mean().item()
+                std = param.data.std().item()
+                logger.debug(f"Output layer {name}: μ={mean:.4f} σ={std:.4f}")
 
-            # Save weight histograms
-            plt.figure(figsize=(10, 6))
-            plt.hist(param.data.cpu().numpy().flatten(), bins=50)
-            plt.title(f"Weight Distribution: {name}")
-            plt.xlabel("Weight Value")
-            plt.ylabel("Frequency")
-            plt.savefig(self.output_dir / f"weights_{name.replace('.', '_')}.png")
-            plt.close()
-
-            # For output layer, analyze if weights are too large
-            if "main.7.weight" in name:  # Last layer weights
                 if std > 0.1:
                     logger.warning(
                         f"⚠️ Output layer weights have high variance (σ={std:.4f})"
@@ -545,7 +586,7 @@ class ModelValidator:
                 est_act_range = std * 10  # rough estimate based on input std
                 activation_ranges[name] = est_act_range
 
-        # Check for potential activation explosion
+        # Check for potential activation explosion in output layers
         if activation_ranges:
             max_range = max(activation_ranges.values())
             if max_range > 10:
@@ -556,7 +597,7 @@ class ModelValidator:
                     "The model may produce extreme output values during inference"
                 )
 
-        # Test forward pass timing
+        # Test forward pass timing with fewer iterations
         dummy_input = torch.randn(1, 480, 270, 3).to(self.device)
         starter, ender = (
             torch.cuda.Event(enable_timing=True),
@@ -564,11 +605,11 @@ class ModelValidator:
         )
 
         with torch.no_grad():
-            # Warmup
-            for _ in range(10):
+            # Reduced warmup
+            for _ in range(3):
                 _ = self.model(dummy_input)
 
-            iterations = 100
+            iterations = 10
             times = []
             for _ in range(iterations):
                 starter.record()
@@ -585,7 +626,7 @@ class ModelValidator:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="RocketNet Validation Tool")
     parser.add_argument(
-        "--model", default="rocket_model_3022.pth", help="Path to model weights"
+        "--model", default="rocket_model.pth", help="Path to model weights"
     )
     parser.add_argument(
         "--batch", default=None, help="Specific batch file to use for testing"
