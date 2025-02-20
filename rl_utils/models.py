@@ -47,8 +47,15 @@ class RocketNet(nn.Module):
         # Binary controls (buttons) - no activation
         self.binary_head = nn.Linear(128, 11)
 
-        # Analog controls with sigmoid activation
-        self.analog_head = nn.Sequential(nn.Linear(128, 8), nn.Sigmoid())
+        # Improved analog head with more expressive architecture
+        self.analog_head = nn.Sequential(
+            nn.Linear(128, 64),
+            nn.LayerNorm(64),  # Normalize activations
+            nn.LeakyReLU(0.1),
+            nn.Dropout(0.1),   # Prevent overfitting
+            nn.Linear(64, 8),
+            nn.Sigmoid()
+        )
 
         # Apply weight initialization
         self._initialize_weights()
@@ -108,7 +115,7 @@ class FocalLoss(nn.Module):
         alpha_t = self.alpha * targets + (1 - self.alpha) * (1 - targets)
         focal_weight = alpha_t * (1 - p_t) ** self.gamma
 
-        # Apply weights to BCE loss
+        # Apply weights to BCE loss (removed 1.5x multiplier)
         loss = focal_weight * bce_loss
 
         return loss.mean()
@@ -141,8 +148,16 @@ def compute_improved_loss(outputs, targets):
         analog_values, analog_targets, reduction="mean", beta=0.1
     )
 
-    # Total loss with increased weight on binary controls
-    total_loss = binary_loss + analog_loss
+    # Add distribution regularization for analog outputs
+    analog_distribution_loss = 0.0
+    if analog_values.size(0) > 1:  # Only if batch size > 1
+        # Encourage diversity in predictions across the batch
+        analog_mean = analog_values.mean(dim=0, keepdim=True)
+        analog_std = torch.clamp(analog_values.std(dim=0), min=0.1)
+        analog_distribution_loss = 0.05 * (1.0 / analog_std).mean()
+
+    # Total loss with increased analog weight and distribution regularization
+    total_loss = binary_loss + 3.0 * analog_loss + analog_distribution_loss
 
     # Final safety check
     if torch.isnan(total_loss) or torch.isinf(total_loss):

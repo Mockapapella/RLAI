@@ -142,3 +142,4 @@ ai/
 data/rocket_league/
 rocket_model*.pth
 runs/
+models/

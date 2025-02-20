@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "colorama>=0.4.6",
     "evdev>=1.9.0",
     "h5py>=3.12.1",
     "mss>=10.0.0",
@@ -20,4 +21,5 @@ dev = [
     "debugpy>=1.8.12",
     "matplotlib>=3.10.0",
     "pyqt6>=6.8.1",
+    "standard-imghdr>=3.13.0",
 ]

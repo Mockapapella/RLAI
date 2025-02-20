@@ -47,7 +47,7 @@ def get_ram_usage():
 
 
 def calculate_metrics(outputs, targets):
-    """Calculate separate metrics for binary and analog controls"""
+    """Calculate comprehensive metrics for binary and analog controls"""
     # Split the outputs
     binary_logits = outputs[:, :11]
     analog_values = outputs[:, 11:]
@@ -61,15 +61,18 @@ def calculate_metrics(outputs, targets):
     binary_preds = (binary_probs >= 0.5).float()
     binary_accuracy = (binary_preds == binary_targets).float().mean().item()
 
-    # Analog metrics - consider within 10% as correct
-    analog_accuracy = (
-        (torch.abs(analog_values - analog_targets) < 0.1).float().mean().item()
-    )
+    # Analog metrics with multiple thresholds
+    analog_errors = torch.abs(analog_values - analog_targets)
+    analog_strict = (analog_errors < 0.01).float().mean().item()  # Within 1%
+    analog_usable = (analog_errors < 0.05).float().mean().item()  # Within 5%
 
-    # Calculate combined accuracy (average of binary and analog instead of element-wise)
+    # Use the usable metric for training feedback while tracking strict
+    analog_accuracy = analog_usable
+
+    # Calculate combined accuracy
     combined_accuracy = (binary_accuracy + analog_accuracy) / 2
 
-    return binary_accuracy, analog_accuracy, combined_accuracy
+    return binary_accuracy, analog_accuracy, combined_accuracy, analog_strict
 
 
 def split_batch(frames, inputs, train_ratio=0.8, max_samples=5000):
@@ -295,7 +298,7 @@ for epoch in range(epochs):
 
             # Calculate and track metrics
             with torch.no_grad():
-                binary_acc, analog_acc, combined_acc = calculate_metrics(
+                binary_acc, analog_acc, combined_acc, analog_strict = calculate_metrics(
                     outputs, batch_y
                 )
                 epoch_metrics["train_binary_acc"] += binary_acc
@@ -304,8 +307,25 @@ for epoch in range(epochs):
 
             # Step optimizer after accumulation
             if (i + 1) % accumulation_steps == 0 or (i + 1 == len(train_loader)):
-                # Unscale before clipping
+                # Unscale before manipulation
                 scaler.unscale_(optim)
+
+                # Get average gradient magnitudes for each head
+                binary_grad_norm = torch.norm(
+                    torch.stack([torch.norm(p.grad) for p in model.binary_head.parameters() if p.grad is not None])
+                )
+                analog_grad_norm = torch.norm(
+                    torch.stack([torch.norm(p.grad) for p in model.analog_head.parameters() if p.grad is not None])
+                )
+
+                # If binary gradients dominate, scale them down
+                if binary_grad_norm > 2.0 * analog_grad_norm:
+                    scale_factor = analog_grad_norm / binary_grad_norm
+                    for p in model.binary_head.parameters():
+                        if p.grad is not None:
+                            p.grad *= scale_factor
+
+                # Apply normal gradient clipping
                 torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
 
                 scaler.step(optim)
@@ -381,7 +401,7 @@ for epoch in range(epochs):
                 batch_val_loss = compute_improved_loss(val_outputs, val_y)
 
                 # Calculate metrics
-                binary_acc, analog_acc, combined_acc = calculate_metrics(
+                binary_acc, analog_acc, combined_acc, analog_strict = calculate_metrics(
                     val_outputs, val_y
                 )
 
@@ -390,6 +410,7 @@ for epoch in range(epochs):
                 file_val_metrics["binary_acc"] += binary_acc * samples
                 file_val_metrics["analog_acc"] += analog_acc * samples
                 file_val_metrics["combined_acc"] += combined_acc * samples
+                file_val_metrics["analog_strict"] = analog_strict  # Track strict metric separately
                 file_val_metrics["count"] += samples
 
                 total_val_loss += batch_val_loss.item()
