@@ -116,11 +116,7 @@ class EnhancedInputApplier:
             # Apply button thresholding with hysteresis
             for code, value in zip(button_codes, predictions[:11]):
                 button_state = int(value > 0.7)  # Simple threshold for buttons
-                if (
-                    code == ecodes.BTN_NORTH
-                    or code == ecodes.BTN_MODE
-                    or code == ecodes.BTN_START
-                ):
+                if code == ecodes.BTN_MODE or code == ecodes.BTN_START:
                     continue
                 self.ui.write(ecodes.EV_KEY, code, button_state)
                 if self.debug_mode and button_state:
@@ -137,21 +133,26 @@ class EnhancedInputApplier:
                 # Center around 0.5 (neutral)
                 centered_value = stick_trigger_values[i] - 0.5
 
-                # Larger deadzone and reduced sensitivity for camera controls (right stick)
-                if i in [2, 3]:  # Right stick axes
-                    deadzone = 0.1  # 20% deadzone for camera
-                    sensitivity = 0.5  # Reduce camera movement intensity
-                else:
-                    deadzone = 0.025  # 5% deadzone for movement
-                    sensitivity = 1.0  # Full sensitivity for movement
+                deadzone = 0.025  # 5% deadzone for all stick movement
+                sensitivity = 1.0  # Base sensitivity
 
                 # Apply deadzone
                 if abs(centered_value) < deadzone:
                     scaled_values[i] = 128  # Center position
                 else:
-                    # Apply sensitivity scaling and convert to full range
+                    # Apply base scaling first
                     adjusted_value = centered_value * sensitivity
-                    scaled_values[i] = np.clip((adjusted_value + 0.5) * 255, 0, 255)
+                    base_scaled = (adjusted_value + 0.5) * 255
+
+                    # Multiply/divide final values based on stick
+                    if i in [0, 1]:  # Left stick (movement)
+                        scaled_values[i] = np.clip(
+                            base_scaled * 2, 0, 255
+                        )  # Double the value
+                    else:  # Right stick (camera)
+                        scaled_values[i] = np.clip(
+                            base_scaled / 2, 0, 255
+                        )  # Half the value
 
             # Process triggers (last 2 values)
             scaled_values[4:6] = np.clip(stick_trigger_values[4:6] * 255, 0, 255)
