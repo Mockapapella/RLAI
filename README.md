@@ -48,6 +48,8 @@ From there, to train a model from scratch, run:
 uv run train.py
 ```
 
+If you'd like to see some pretty loss plots, you can run `tensorboard --logdir runs/` and go to http:/localhost:6006.
+
 And to inference with it, boot up rocket league, enter a match (3v3 standard mode is what it was training on), **disconnect the controller you used to collect training data with (otherwise it will create a second controller)**, run the script, and make "Rocket League" the currently active window:
 
 ```
