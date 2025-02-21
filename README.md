@@ -19,6 +19,7 @@ This repo uses `uv`. This script should get you up and running:
 ```
 curl -LsSf https://astral.sh/uv/install.sh | sh
 git clone git@github.com:Mockapapella/RLAI.git
+cd RLAI/
 uv venv
 uv sync
 ```

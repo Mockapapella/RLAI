@@ -11,7 +11,6 @@ from torch.utils.data import TensorDataset, DataLoader
 from time import time
 from datetime import datetime, timedelta
 from torch.utils.tensorboard import SummaryWriter
-from torchvision import transforms
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 writer = SummaryWriter("runs/rocket_league/")
@@ -116,7 +115,7 @@ def batch_generator(h5_files):
 
 
 # Get files
-pattern = os.path.join("data/rocket_league/training/", "*_batch.h5")
+pattern = os.path.join("rlai-multi-map/", "*_batch.h5")
 h5_files = glob.glob(pattern)
 
 # Set random seed for reproducibility
@@ -312,10 +311,22 @@ for epoch in range(epochs):
 
                 # Get average gradient magnitudes for each head
                 binary_grad_norm = torch.norm(
-                    torch.stack([torch.norm(p.grad) for p in model.binary_head.parameters() if p.grad is not None])
+                    torch.stack(
+                        [
+                            torch.norm(p.grad)
+                            for p in model.binary_head.parameters()
+                            if p.grad is not None
+                        ]
+                    )
                 )
                 analog_grad_norm = torch.norm(
-                    torch.stack([torch.norm(p.grad) for p in model.analog_head.parameters() if p.grad is not None])
+                    torch.stack(
+                        [
+                            torch.norm(p.grad)
+                            for p in model.analog_head.parameters()
+                            if p.grad is not None
+                        ]
+                    )
                 )
 
                 # If binary gradients dominate, scale them down
@@ -410,7 +421,9 @@ for epoch in range(epochs):
                 file_val_metrics["binary_acc"] += binary_acc * samples
                 file_val_metrics["analog_acc"] += analog_acc * samples
                 file_val_metrics["combined_acc"] += combined_acc * samples
-                file_val_metrics["analog_strict"] = analog_strict  # Track strict metric separately
+                file_val_metrics["analog_strict"] = (
+                    analog_strict  # Track strict metric separately
+                )
                 file_val_metrics["count"] += samples
 
                 total_val_loss += batch_val_loss.item()

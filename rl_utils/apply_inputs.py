@@ -7,7 +7,7 @@ import logging
 from datetime import datetime
 
 
-class EnhancedInputApplier:
+class InputApplier:
     def __init__(self, debug_mode=False):
         self.debug_mode = debug_mode
         if debug_mode:

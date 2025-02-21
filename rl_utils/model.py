@@ -1,7 +1,6 @@
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-from torch.amp import autocast
 
 
 class RocketNet(nn.Module):
@@ -52,9 +51,9 @@ class RocketNet(nn.Module):
             nn.Linear(128, 64),
             nn.LayerNorm(64),  # Normalize activations
             nn.LeakyReLU(0.1),
-            nn.Dropout(0.1),   # Prevent overfitting
+            nn.Dropout(0.1),  # Prevent overfitting
             nn.Linear(64, 8),
-            nn.Sigmoid()
+            nn.Sigmoid(),
         )
 
         # Apply weight initialization

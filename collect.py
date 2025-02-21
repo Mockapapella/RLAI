@@ -4,9 +4,9 @@ from rl_utils.data_batcher import BatchSaver
 from rl_utils.get_current_window import WindowMonitor
 import time
 
-BATCH_SIZE = 5000  # Original batch size
-SAVE_DIR = "data/rocket_league/training/"
-FPS_UPDATE_INTERVAL = 1.0  # Update FPS display every second for smoother numbers
+BATCH_SIZE = 5000
+SAVE_DIR = "rlai-multi-map/"
+FPS_UPDATE_INTERVAL = 1.0
 
 
 def main():
