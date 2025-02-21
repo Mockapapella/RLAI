@@ -1,10 +1,11 @@
-from evdev.uinput import UInput
-from evdev.device import AbsInfo
-from evdev import ecodes
-import torch
-import numpy as np
 import logging
 from datetime import datetime
+
+import numpy as np
+import torch
+from evdev import ecodes
+from evdev.device import AbsInfo
+from evdev.uinput import UInput
 
 
 class InputApplier:
@@ -146,13 +147,9 @@ class InputApplier:
 
                     # Multiply/divide final values based on stick
                     if i in [0, 1]:  # Left stick (movement)
-                        scaled_values[i] = np.clip(
-                            base_scaled * 2, 0, 255
-                        )  # Double the value
+                        scaled_values[i] = np.clip(base_scaled * 2, 0, 255)  # Double the value
                     else:  # Right stick (camera)
-                        scaled_values[i] = np.clip(
-                            base_scaled / 2, 0, 255
-                        )  # Half the value
+                        scaled_values[i] = np.clip(base_scaled / 2, 0, 255)  # Half the value
 
             # Process triggers (last 2 values)
             scaled_values[4:6] = np.clip(stick_trigger_values[4:6] * 255, 0, 255)
@@ -186,9 +183,7 @@ class InputApplier:
             for code, value in zip(button_codes, predictions[:11]):
                 if code not in [ecodes.BTN_MODE, ecodes.BTN_START]:
                     button_state = int(value > 0.7)
-                    print(
-                        f"  {ecodes.BTN[code]}: {'Pressed' if button_state else 'Released'}"
-                    )
+                    print(f"  {ecodes.BTN[code]}: {'Pressed' if button_state else 'Released'}")
 
             print("\nAnalog Values:")
             analog_names = [

@@ -1,8 +1,9 @@
-from rl_utils.get_current_frame import FrameGrabber
+import time
+
 from rl_utils.controller_reader import ControllerReader
 from rl_utils.data_batcher import BatchSaver
+from rl_utils.get_current_frame import FrameGrabber
 from rl_utils.get_current_window import WindowMonitor
-import time
 
 BATCH_SIZE = 5000
 SAVE_DIR = "rlai-multi-map/"

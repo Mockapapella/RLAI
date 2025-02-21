@@ -1,7 +1,8 @@
-import evdev
-from evdev import ecodes
-import numpy as np
 import time
+
+import evdev
+import numpy as np
+from evdev import ecodes
 
 
 class ControllerReader:
@@ -79,10 +80,7 @@ class ControllerReader:
         )
 
         axes = np.array(
-            [
-                self._normalize_axis(code, self.axis_states.get(code, 0))
-                for code in AXIS_CODES
-            ],
+            [self._normalize_axis(code, self.axis_states.get(code, 0)) for code in AXIS_CODES],
             dtype=np.float32,
         )
 

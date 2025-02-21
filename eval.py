@@ -1,11 +1,13 @@
-from rl_utils.get_current_frame import FrameGrabber
-from rl_utils.get_current_window import WindowMonitor
-import cv2
-import torch
-from rl_utils.model import RocketNet
-from rl_utils.apply_inputs import InputApplier
 import logging
 from datetime import datetime
+
+import cv2
+import torch
+
+from rl_utils.apply_inputs import InputApplier
+from rl_utils.get_current_frame import FrameGrabber
+from rl_utils.get_current_window import WindowMonitor
+from rl_utils.model import RocketNet
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -50,9 +52,7 @@ def main():
                         input_applier.apply_inputs(output)
 
                     except Exception as e:
-                        logging.error(
-                            f"Error during inference/input application: {str(e)}"
-                        )
+                        logging.error(f"Error during inference/input application: {str(e)}")
                         continue
 
     except KeyboardInterrupt:

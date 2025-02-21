@@ -1,16 +1,21 @@
-import h5py
 import glob
 import os
-import numpy as np
 import random
-import torch
-from torch.optim import AdamW
-from torch.amp import GradScaler
-from rl_utils.model import RocketNet, compute_improved_loss
-from torch.utils.data import TensorDataset, DataLoader
+from datetime import datetime
+from datetime import timedelta
 from time import time
-from datetime import datetime, timedelta
+
+import h5py
+import numpy as np
+import torch
+from torch.amp import GradScaler
+from torch.optim import AdamW
+from torch.utils.data import DataLoader
+from torch.utils.data import TensorDataset
 from torch.utils.tensorboard import SummaryWriter
+
+from rl_utils.model import RocketNet
+from rl_utils.model import compute_improved_loss
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 writer = SummaryWriter("runs/rocket_league/")
@@ -145,9 +150,7 @@ for i in range(sample_files):
         ) // batch_size  # 80% for training, batch size 128
 
 # Extrapolate to all files
-approx_steps_per_epoch = int(
-    approx_steps_per_epoch * (len(h5_files) / max(1, sample_files))
-)
+approx_steps_per_epoch = int(approx_steps_per_epoch * (len(h5_files) / max(1, sample_files)))
 total_steps = approx_steps_per_epoch * 25  # 25 epochs max
 
 # Training configuration
@@ -159,9 +162,7 @@ model.to(device)
 param_count = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 # Optimizer with lower learning rate
-optim = AdamW(
-    model.parameters(), lr=3e-4, weight_decay=1e-5, betas=(0.9, 0.999), eps=1e-8
-)
+optim = AdamW(model.parameters(), lr=3e-4, weight_decay=1e-5, betas=(0.9, 0.999), eps=1e-8)
 
 # OneCycleLR scheduler
 scheduler = torch.optim.lr_scheduler.OneCycleLR(
@@ -279,9 +280,7 @@ for epoch in range(epochs):
 
             # Skip if NaN/Inf outputs detected
             if torch.isnan(outputs).any() or torch.isinf(outputs).any():
-                print(
-                    f"NaN/Inf in outputs detected at batch {batch_count}. Skipping batch."
-                )
+                print(f"NaN/Inf in outputs detected at batch {batch_count}. Skipping batch.")
                 continue
 
             # Calculate loss with improved loss function
@@ -353,12 +352,8 @@ for epoch in range(epochs):
             # Log training metrics to tensorboard
             if i % 5 == 0 or i + 1 == len(train_loader):
                 global_step = epoch * len(h5_files) * len(train_loader) + batch_count
-                writer.add_scalar(
-                    "Training/Loss", loss.item() * accumulation_steps, global_step
-                )
-                writer.add_scalar(
-                    "Training/Learning_Rate", scheduler.get_last_lr()[0], global_step
-                )
+                writer.add_scalar("Training/Loss", loss.item() * accumulation_steps, global_step)
+                writer.add_scalar("Training/Learning_Rate", scheduler.get_last_lr()[0], global_step)
                 writer.add_scalar("Training/Binary_Accuracy", binary_acc, global_step)
                 writer.add_scalar("Training/Analog_Accuracy", analog_acc, global_step)
 
@@ -366,9 +361,7 @@ for epoch in range(epochs):
                 if i % 20 == 0:
                     for name, param in model.named_parameters():
                         if param.grad is not None:
-                            writer.add_histogram(
-                                f"Gradients/{name}", param.grad, global_step
-                            )
+                            writer.add_histogram(f"Gradients/{name}", param.grad, global_step)
 
             # Print progress
             if i % 5 == 0 or i + 1 == len(train_loader):
@@ -402,9 +395,7 @@ for epoch in range(epochs):
                 torch.from_numpy(val_frames).float(),
                 torch.from_numpy(val_inputs).float(),
             )
-            val_loader = DataLoader(
-                val_dataset, batch_size=batch_size * 2, pin_memory=True
-            )
+            val_loader = DataLoader(val_dataset, batch_size=batch_size * 2, pin_memory=True)
 
             for val_X, val_y in val_loader:
                 val_X = process_batch(val_X.numpy(), device)
@@ -423,9 +414,7 @@ for epoch in range(epochs):
                 file_val_metrics["binary_acc"] += binary_acc * samples
                 file_val_metrics["analog_acc"] += analog_acc * samples
                 file_val_metrics["combined_acc"] += combined_acc * samples
-                file_val_metrics["analog_strict"] = (
-                    analog_strict  # Track strict metric separately
-                )
+                file_val_metrics["analog_strict"] = analog_strict  # Track strict metric separately
                 file_val_metrics["count"] += samples
 
                 total_val_loss += batch_val_loss.item()
@@ -435,9 +424,7 @@ for epoch in range(epochs):
         avg_file_metrics = {}
         if file_val_metrics["count"] > 0:
             for key in ["binary_acc", "analog_acc", "combined_acc"]:
-                avg_file_metrics[key] = (
-                    file_val_metrics[key] / file_val_metrics["count"]
-                )
+                avg_file_metrics[key] = file_val_metrics[key] / file_val_metrics["count"]
                 # Add to epoch total
                 epoch_metrics[f"val_{key}"] += avg_file_metrics[key]
 
@@ -478,12 +465,8 @@ for epoch in range(epochs):
         print(f"Training time: {format_time(file_time - val_time)}")
         print(f"Validation time: {format_time(val_time)}")
         print(f"Validation Loss: {file_val_loss:.4f}")
-        print(
-            f"Validation Binary Accuracy: {avg_file_metrics.get('binary_acc', 0):.2%}"
-        )
-        print(
-            f"Validation Analog Accuracy: {avg_file_metrics.get('analog_acc', 0):.2%}"
-        )
+        print(f"Validation Binary Accuracy: {avg_file_metrics.get('binary_acc', 0):.2%}")
+        print(f"Validation Analog Accuracy: {avg_file_metrics.get('analog_acc', 0):.2%}")
 
         # Switch back to train mode
         model.train()
@@ -520,9 +503,9 @@ for epoch in range(epochs):
             "epoch": epoch + 1,
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": optim.state_dict(),
-            "scheduler_state_dict": scheduler.state_dict()
-            if hasattr(scheduler, "state_dict")
-            else None,
+            "scheduler_state_dict": (
+                scheduler.state_dict() if hasattr(scheduler, "state_dict") else None
+            ),
             "loss": avg_val_loss,
             "metrics": epoch_metrics,
         },

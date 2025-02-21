@@ -1,5 +1,5 @@
-import torch.nn as nn
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 
 
@@ -143,9 +143,7 @@ def compute_improved_loss(outputs, targets):
     analog_values = torch.clamp(analog_values, eps, 1.0 - eps)
 
     # Use smooth L1 loss for analog controls
-    analog_loss = F.smooth_l1_loss(
-        analog_values, analog_targets, reduction="mean", beta=0.1
-    )
+    analog_loss = F.smooth_l1_loss(analog_values, analog_targets, reduction="mean", beta=0.1)
 
     # Add distribution regularization for analog outputs
     analog_distribution_loss = 0.0

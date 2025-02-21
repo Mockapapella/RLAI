@@ -5,8 +5,8 @@ RLAI is a deep learning approach to playing rocket league. It watches for an act
 At a high level, there are 3 steps:
 
 1. Collect training data by recording your own gameplay (`collect.py`)
-2. Train the model (`train.py`)
-3. Evaluate the model by livestreaming the active Rocket League window to the neural network (`eval.py`)
+1. Train the model (`train.py`)
+1. Evaluate the model by livestreaming the active Rocket League window to the neural network (`eval.py`)
 
 And additional script is added to playback the training data to verify it's quality (`playback.py`). Note that `opencv` processes images as `BGR` instead of `RGB`, so the two channels will be reversed.
 
@@ -29,7 +29,7 @@ uv sync
 If you're not interested in gathering training data you can just go to the next section and download the trained model to run it. If how ever you want to collect your own training data, follow these steps:
 
 1. Connect a controller to your computer and boot up Rocket League
-2. Run `uv run collect.py` to start collecting labeled training data of (frames, inputs)
+1. Run `uv run collect.py` to start collecting labeled training data of (frames, inputs)
 
 It only collects training data when Rocket League is the currently active window. Data is saved to `data/rocket_league/training/` in chunks of 5000 labeled pairs per file, which comes out to about 1GB per file. How quickly this builds up is partially dependent on how fast your computer is. In practice I saw a new file being created every 3-5 minutes. Cancelling the script early will cause it to save the currently gathered training pairs before it fully exits.
 

@@ -19,7 +19,7 @@ class WindowMonitor:
                 capture_output=True,
                 text=True,
                 check=True,
-                timeout=0.05  # Faster failure if window doesn't respond
+                timeout=0.05,  # Faster failure if window doesn't respond
             )
             self.cached_name = result.stdout.strip()
         except Exception:
@@ -37,7 +37,7 @@ def get_active_window():
             capture_output=True,
             text=True,
             check=True,
-            timeout=0.05
+            timeout=0.05,
         )
         return result.stdout.strip()
     except Exception:

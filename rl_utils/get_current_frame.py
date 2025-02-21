@@ -1,9 +1,10 @@
-import numpy as np
+import subprocess
+import time
+from typing import Optional
+
 import mss
 import mss.tools
-import time
-import subprocess
-from typing import Optional
+import numpy as np
 
 
 class FrameGrabber:
@@ -64,11 +65,7 @@ class FrameGrabber:
         try:
             # Capture and convert frame
             raw = self.sct.grab(monitor)
-            frame = (
-                np.frombuffer(raw.rgb, dtype=np.uint8)
-                .reshape(raw.height, raw.width, 3)
-                .copy()
-            )
+            frame = np.frombuffer(raw.rgb, dtype=np.uint8).reshape(raw.height, raw.width, 3).copy()
             return frame
 
         except mss.ScreenShotError:

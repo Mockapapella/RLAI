@@ -1,10 +1,11 @@
-import numpy as np
-import cv2
+import argparse
 import glob
 import os
-import h5py
 from typing import Tuple
-import argparse
+
+import cv2
+import h5py
+import numpy as np
 
 
 def load_h5_data(filename: str) -> Tuple[np.ndarray, np.ndarray, dict]:
@@ -85,7 +86,7 @@ def main():
     parser.add_argument(
         "--data-dir",
         type=str,
-        default="training_data",
+        default="rlai-multi-map",
         help="Directory containing the training data",
     )
     parser.add_argument(

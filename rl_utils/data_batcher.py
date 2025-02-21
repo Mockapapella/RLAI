@@ -1,9 +1,10 @@
-import numpy as np
-import time
 import os
-import cv2
+import time
 from concurrent.futures import ThreadPoolExecutor
+
+import cv2
 import h5py
+import numpy as np
 
 
 class BatchSaver:
