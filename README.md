@@ -31,7 +31,7 @@ If you're not interested in gathering training data you can just go to the next 
 1. Connect a controller to your computer and boot up Rocket League
 2. Run `uv run collect.py` to start collecting labeled training data of (frames, inputs)
 
-It only collects training data when Rocket League is the currently active window. Data is saved to `data/rocket_league/training/` in chunks of 5000 labeled pairs per file, which comes out to about 1GB per file. How quickly this builds up is partially dependent on how fast your computer is. In practice I saw a new file being created every 3-5 minutes.
+It only collects training data when Rocket League is the currently active window. Data is saved to `data/rocket_league/training/` in chunks of 5000 labeled pairs per file, which comes out to about 1GB per file. How quickly this builds up is partially dependent on how fast your computer is. In practice I saw a new file being created every 3-5 minutes. Cancelling the script early will cause it to save the currently gathered training pairs before it fully exits.
 
 # Model and training data
 

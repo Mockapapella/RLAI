@@ -2,7 +2,7 @@ from rl_utils.get_current_frame import FrameGrabber
 from rl_utils.get_current_window import WindowMonitor
 import cv2
 import torch
-from rl_utils.models import RocketNet
+from rl_utils.model import RocketNet
 from rl_utils.apply_inputs import InputApplier
 import logging
 from datetime import datetime
@@ -17,7 +17,7 @@ FPS_UPDATE_INTERVAL = 1.0
 
 # Model setup
 model = RocketNet()
-model.load_state_dict(torch.load("rlai-1.4M/rocket_model_best.pth"))
+model.load_state_dict(torch.load("rlai-1.4M/rlai-1.4M.pth"))
 model.eval()
 device = "cuda"
 model.to(device)

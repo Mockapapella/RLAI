@@ -6,7 +6,7 @@ import random
 import torch
 from torch.optim import AdamW
 from torch.amp import GradScaler
-from rl_utils.models import RocketNet, compute_improved_loss
+from rl_utils.model import RocketNet, compute_improved_loss
 from torch.utils.data import TensorDataset, DataLoader
 from time import time
 from datetime import datetime, timedelta
@@ -14,6 +14,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 torch.multiprocessing.set_sharing_strategy("file_system")
 writer = SummaryWriter("runs/rocket_league/")
+SAVE_DIR = "rlai-1.4M/"
 
 
 def format_time(seconds):
@@ -127,7 +128,7 @@ if torch.cuda.is_available():
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-epochs = 25
+epochs = 2
 batch_size = 128
 accumulation_steps = 1  # Gradient accumulation for effective batch size of 512
 scaler = GradScaler()  # For mixed precision training
@@ -341,7 +342,8 @@ for epoch in range(epochs):
 
                 scaler.step(optim)
                 scaler.update()
-                scheduler.step()
+                if scheduler._step_count < scheduler.total_steps:
+                    scheduler.step()
                 optim.zero_grad()
 
             epoch_loss += loss.item() * accumulation_steps
@@ -511,6 +513,8 @@ for epoch in range(epochs):
     get_ram_usage()
 
     # Save epoch checkpoint
+    if not os.path.exists(SAVE_DIR):
+        os.makedirs(SAVE_DIR, exist_ok=True)
     torch.save(
         {
             "epoch": epoch + 1,
@@ -522,7 +526,7 @@ for epoch in range(epochs):
             "loss": avg_val_loss,
             "metrics": epoch_metrics,
         },
-        f"rocket_model_epoch_{epoch + 1}.pth",
+        f"rlai-1.4M/rocket_model_epoch_{epoch + 1}.pth",
     )
 
     # Early stopping check
@@ -532,7 +536,7 @@ for epoch in range(epochs):
         early_stopping["best_epoch"] = epoch + 1
 
         # Save best model separately
-        torch.save(model.state_dict(), "rocket_model_best.pth")
+        torch.save(model.state_dict(), "rlai-1.4M/rlai-1.4M.pth")
         print(f"✓ Saved new best model with validation loss: {avg_val_loss:.4f}")
     else:
         early_stopping["counter"] += 1
@@ -559,10 +563,6 @@ print(
 print("Final Memory Status:")
 get_ram_usage()
 print("=" * 50)
-
-# Save the final model
-torch.save(model.state_dict(), "rocket_model_final.pth")
-print("\nFinal model saved successfully")
 
 # Final cleanup
 writer.close()
