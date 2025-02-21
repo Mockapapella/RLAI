@@ -55,3 +55,8 @@ uv run eval.py
 ```
 
 And that should be it!
+
+# Huggingface Links
+
+https://huggingface.co/Mockapapella/rlai-1.4M
+https://huggingface.co/datasets/Mockapapella/rlai-multi-map
