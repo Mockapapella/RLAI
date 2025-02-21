@@ -1,3 +1,9 @@
+"""Module for collecting training data from Rocket League gameplay.
+
+This script captures frames and controller inputs while playing Rocket League,
+saving them in batches for later use in training the AI model.
+"""
+
 import time
 
 from rl_utils.controller_reader import ControllerReader
@@ -10,7 +16,13 @@ SAVE_DIR = "rlai-multi-map/"
 FPS_UPDATE_INTERVAL = 1.0
 
 
-def main():
+def main() -> None:
+    """Run the data collection process.
+
+    Continuously captures frames and controller inputs from Rocket League,
+    saving them in batches. The process runs until interrupted with Ctrl+C.
+    Displays real-time FPS statistics during capture.
+    """
     grabber = FrameGrabber()
     controller = ControllerReader()
     batcher = BatchSaver(BATCH_SIZE, SAVE_DIR)
@@ -18,9 +30,9 @@ def main():
 
     print("Starting capture - focus target window to begin...")
 
-    frame_count = 0
+    frame_count: float = 0.0
     last_fps_time = time.time()
-    last_fps = 0
+    last_fps: float = 0.0
 
     try:
         while True:
@@ -42,7 +54,7 @@ def main():
                 if time_diff >= FPS_UPDATE_INTERVAL:
                     last_fps = frame_count / time_diff
                     print(f"\rFPS: {last_fps:.1f}", end="", flush=True)
-                    frame_count = 0
+                    frame_count = 0.0
                     last_fps_time = current_time
 
     except KeyboardInterrupt:

@@ -1,5 +1,10 @@
+"""Module for evaluating the trained Rocket League AI model.
+
+This script loads a trained model and uses it to play Rocket League in real-time,
+capturing frames from the game window and applying predicted controller inputs.
+"""
+
 import logging
-from datetime import datetime
 
 import cv2
 import torch
@@ -24,7 +29,14 @@ device = "cuda"
 model.to(device)
 
 
-def main():
+def main() -> None:
+    """Run the AI evaluation process.
+
+    Continuously captures frames from Rocket League, processes them through
+    the neural network, and applies the predicted inputs to a virtual controller.
+    The process runs until interrupted with Ctrl+C, with full logging of events
+    and error handling.
+    """
     grabber = FrameGrabber()
     window_monitor = WindowMonitor()
     input_applier = InputApplier(debug_mode=True)

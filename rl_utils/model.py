@@ -1,9 +1,18 @@
+"""Neural network model and loss functions for Rocket League AI."""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 
 class RocketNet(nn.Module):
+    """Neural network for predicting Rocket League controller inputs from game frames.
+
+    Architecture:
+        - Shared convolutional backbone for processing input frames
+        - Separate heads for binary (buttons) and analog (sticks/triggers) outputs
+    """
+
     def __init__(self):
         super(RocketNet, self).__init__()
 
@@ -69,7 +78,15 @@ class RocketNet(nn.Module):
                 nn.init.constant_(m.weight, 1)
                 nn.init.constant_(m.bias, 0)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Process input frames through the network.
+
+        Args:
+            x: Input tensor of shape (B, C, H, W) or (B, H, W, C).
+
+        Returns:
+            Tensor of shape (B, 19) containing predicted controller inputs.
+        """
         # Ensure proper input format (B, C, H, W) for convolutions
         if x.dim() == 4 and x.shape[1] == 270 and x.shape[2] == 480:
             # Input is (B, H, W, C), need to permute to (B, C, H, W)
@@ -93,16 +110,23 @@ class RocketNet(nn.Module):
 
 
 class FocalLoss(nn.Module):
-    """
-    Focal Loss to address class imbalance for binary controls
-    """
+    """Focal Loss to address class imbalance for binary controls."""
 
     def __init__(self, gamma=2.0, alpha=0.25):
         super(FocalLoss, self).__init__()
         self.gamma = gamma
         self.alpha = alpha
 
-    def forward(self, logits, targets):
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        """Compute focal loss between predictions and targets.
+
+        Args:
+            logits: Raw model outputs before sigmoid.
+            targets: Binary target values.
+
+        Returns:
+            Scalar loss value.
+        """
         # Apply sigmoid to get probabilities
         probs = torch.sigmoid(logits)
 
@@ -120,10 +144,18 @@ class FocalLoss(nn.Module):
         return loss.mean()
 
 
-def compute_improved_loss(outputs, targets):
-    """
-    Improved loss function with focal loss for binary controls
-    and smooth L1 loss for analog controls
+def compute_improved_loss(outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    """Compute combined loss for binary and analog controls.
+
+    Uses focal loss for binary controls (buttons) and smooth L1 loss for analog
+    controls (sticks/triggers), with additional regularization for analog outputs.
+
+    Args:
+        outputs: Model predictions of shape (B, 19).
+        targets: Target values of shape (B, 19).
+
+    Returns:
+        Combined loss value as a scalar tensor.
     """
     # Split the outputs and targets
     binary_logits = outputs[:, :11]  # First 11 are binary controls
@@ -149,8 +181,7 @@ def compute_improved_loss(outputs, targets):
     analog_distribution_loss = 0.0
     if analog_values.size(0) > 1:  # Only if batch size > 1
         # Encourage diversity in predictions across the batch
-        analog_mean = analog_values.mean(dim=0, keepdim=True)
-        analog_std = torch.clamp(analog_values.std(dim=0), min=0.1)
+        analog_std = torch.clamp(analog_values.std(dim=0, unbiased=False), min=0.1)
         analog_distribution_loss = 0.05 * (1.0 / analog_std).mean()
 
     # Total loss with increased analog weight and distribution regularization

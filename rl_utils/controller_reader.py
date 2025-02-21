@@ -1,3 +1,5 @@
+"""Module for reading and processing controller inputs for Rocket League AI."""
+
 import time
 
 import evdev
@@ -6,6 +8,12 @@ from evdev import ecodes
 
 
 class ControllerReader:
+    """Reads and processes controller inputs from a physical game controller.
+
+    This class handles controller detection, button and axis state tracking,
+    and provides normalized input vectors suitable for AI training.
+    """
+
     def __init__(self):
         self.device = self._find_controller()
         self.button_states = {}
@@ -37,7 +45,12 @@ class ControllerReader:
                 self.axis_states[code] = absinfo.value
 
     def get_state_vector(self) -> np.ndarray:
-        """Returns normalized [buttons..., axes...] vector (19 elements)"""
+        """Return normalized [buttons..., axes...] vector (19 elements).
+
+        Returns:
+            A numpy array containing 11 button states followed by 8 axis values,
+            all normalized to the range [0, 1].
+        """
         # Process any pending events
         try:
             for event in self.device.read():
@@ -90,8 +103,12 @@ class ControllerReader:
         absinfo = self.device.absinfo(code)
         return (value - absinfo.min) / (absinfo.max - absinfo.min)
 
-    def get_active_buttons(self):
-        """Returns a list of currently pressed button names"""
+    def get_active_buttons(self) -> list[str]:
+        """Return a list of currently pressed button names.
+
+        Returns:
+            A list of strings representing the names of currently pressed buttons.
+        """
         button_names = {
             ecodes.BTN_SOUTH: "BTN_SOUTH",
             ecodes.BTN_EAST: "BTN_EAST",
@@ -112,8 +129,12 @@ class ControllerReader:
             if state == 1 and code in button_names
         ]
 
-    def get_axis_states(self):
-        """Returns a dictionary of current axis values"""
+    def get_axis_states(self) -> dict[str, float]:
+        """Return a dictionary of current axis values.
+
+        Returns:
+            A dictionary mapping axis names to their current normalized values.
+        """
         axis_names = {
             ecodes.ABS_X: "Left X",
             ecodes.ABS_Y: "Left Y",
@@ -132,7 +153,8 @@ class ControllerReader:
         }
 
 
-def main():
+def main() -> None:
+    """Run a test loop that continuously displays controller state."""
     try:
         controller = ControllerReader()
         print("Press Ctrl+C to exit")

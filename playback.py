@@ -1,3 +1,9 @@
+"""Module for playing back recorded Rocket League training data.
+
+This script allows visualization of recorded gameplay data, including frames
+and controller inputs, with playback controls for analysis and verification.
+"""
+
 import argparse
 import glob
 import os
@@ -9,7 +15,14 @@ import numpy as np
 
 
 def load_h5_data(filename: str) -> Tuple[np.ndarray, np.ndarray, dict]:
-    """Load frames and inputs from an H5 file."""
+    """Load frames and inputs from an H5 file.
+
+    Args:
+        filename: Path to the H5 file to load.
+
+    Returns:
+        Tuple of (frames array, inputs array, metadata dictionary).
+    """
     with h5py.File(filename, "r") as f:
         frames = f["frames"][:]
         inputs = f["inputs"][:]
@@ -17,11 +30,19 @@ def load_h5_data(filename: str) -> Tuple[np.ndarray, np.ndarray, dict]:
     return frames, inputs, metadata
 
 
-def play_sequence(
-    frames: np.ndarray, inputs: np.ndarray, metadata: dict, fps: int = 30
-):
-    """Play back the sequence of frames with corresponding inputs."""
-    print(f"Sequence info:")
+def play_sequence(frames: np.ndarray, inputs: np.ndarray, metadata: dict, fps: int = 30) -> bool:
+    """Play back the sequence of frames with corresponding inputs.
+
+    Args:
+        frames: Array of frames to display.
+        inputs: Array of corresponding input values.
+        metadata: Dictionary containing sequence metadata.
+        fps: Frames per second for playback.
+
+    Returns:
+        False if user quit, True if sequence completed or skipped.
+    """
+    print("Sequence info:")
     print(f"Shape: {frames.shape}")
     print(f"Grayscale: {metadata.get('grayscale', 'unknown')}")
     print(f"Original target size: {metadata.get('target_size', 'unknown')}")
@@ -37,7 +58,6 @@ def play_sequence(
 
         # Add input data as text overlay
         frame_with_text = frame.copy()
-        input_text = f"Input: {input_data}"
         # cv2.putText(
         #     frame_with_text,
         #     input_text,
@@ -81,7 +101,13 @@ def play_sequence(
     return True
 
 
-def main():
+def main() -> None:
+    """Run the playback visualization tool.
+
+    Loads and plays back recorded training sequences, providing controls
+    for navigation (pause/resume, skip, quit). Handles command line arguments
+    for data directory and playback speed.
+    """
     parser = argparse.ArgumentParser(description="Playback H5 training data sequences")
     parser.add_argument(
         "--data-dir",
@@ -89,9 +115,7 @@ def main():
         default="rlai-multi-map",
         help="Directory containing the training data",
     )
-    parser.add_argument(
-        "--fps", type=int, default=30, help="Frames per second for playback"
-    )
+    parser.add_argument("--fps", type=int, default=30, help="Frames per second for playback")
     args = parser.parse_args()
 
     # Get all H5 files

@@ -1,9 +1,12 @@
+"""Training script for the Rocket League AI model."""
+
 import glob
 import os
 import random
 from datetime import datetime
 from datetime import timedelta
 from time import time
+from typing import Generator
 
 import h5py
 import numpy as np
@@ -22,15 +25,33 @@ writer = SummaryWriter("runs/rocket_league/")
 SAVE_DIR = "rlai-1.4M/"
 
 
-def format_time(seconds):
+def format_time(seconds: float) -> str:
+    """Convert seconds to a formatted time string.
+
+    Args:
+        seconds: Number of seconds to format.
+
+    Returns:
+        A string in the format HH:MM:SS.
+    """
     return str(timedelta(seconds=int(seconds)))
 
 
-def format_percentage(current, total):
+def format_percentage(current: float, total: float) -> str:
+    """Format a ratio as a percentage string.
+
+    Args:
+        current: Current value.
+        total: Total value.
+
+    Returns:
+        A string representing the percentage with one decimal place.
+    """
     return f"{(current / total * 100):.1f}%"
 
 
-def get_ram_usage():
+def get_ram_usage() -> None:
+    """Print current RAM usage statistics."""
     with open("/proc/meminfo", "r") as f:
         lines = f.readlines()
 
@@ -51,8 +72,18 @@ def get_ram_usage():
     print(f"RAM Usage: {used_percent:.1f}%")
 
 
-def calculate_metrics(outputs, targets):
-    """Calculate comprehensive metrics for binary and analog controls"""
+def calculate_metrics(
+    outputs: torch.Tensor, targets: torch.Tensor
+) -> tuple[float, float, float, float]:
+    """Calculate comprehensive metrics for binary and analog controls.
+
+    Args:
+        outputs: Model output tensor.
+        targets: Target tensor.
+
+    Returns:
+        Tuple of (binary_accuracy, analog_accuracy, combined_accuracy, analog_strict).
+    """
     # Split the outputs
     binary_logits = outputs[:, :11]
     analog_values = outputs[:, 11:]
@@ -80,8 +111,23 @@ def calculate_metrics(outputs, targets):
     return binary_accuracy, analog_accuracy, combined_accuracy, analog_strict
 
 
-def split_batch(frames, inputs, train_ratio=0.8, max_samples=5000):
-    """Split a batch into train/val sets with optional subsampling"""
+def split_batch(
+    frames: np.ndarray,
+    inputs: np.ndarray,
+    train_ratio: float = 0.8,
+    max_samples: int = 5000,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Split a batch into train/val sets with optional subsampling.
+
+    Args:
+        frames: Array of input frames.
+        inputs: Array of target inputs.
+        train_ratio: Ratio of data to use for training.
+        max_samples: Maximum number of samples to use.
+
+    Returns:
+        Tuple of (train_frames, train_inputs, val_frames, val_inputs).
+    """
     # Determine total samples to use
     n_samples = min(len(frames), max_samples) if max_samples else len(frames)
 
@@ -104,15 +150,33 @@ def split_batch(frames, inputs, train_ratio=0.8, max_samples=5000):
     )
 
 
-def process_batch(frames, device):
-    """Process and normalize frames"""
+def process_batch(frames: np.ndarray, device: torch.device) -> torch.Tensor:
+    """Process and normalize frames.
+
+    Args:
+        frames: Array of frames to process.
+        device: Device to move tensors to.
+
+    Returns:
+        Processed and normalized tensor on the specified device.
+    """
     # Convert to torch tensor
     frames_tensor = torch.from_numpy(frames).float() / 255.0
     frames_tensor = frames_tensor.to(device)
     return frames_tensor
 
 
-def batch_generator(h5_files):
+def batch_generator(
+    h5_files: list[str],
+) -> Generator[tuple[str, tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]], None, None]:
+    """Generate batches from H5 files.
+
+    Args:
+        h5_files: List of H5 file paths.
+
+    Yields:
+        Tuple of (file_path, (train_frames, train_inputs, val_frames, val_inputs)).
+    """
     for h5_file in h5_files:
         with h5py.File(h5_file, "r") as f:
             frames = f["frames"][:]
@@ -145,9 +209,9 @@ approx_steps_per_epoch = 0
 for i in range(sample_files):
     with h5py.File(h5_files[i], "r") as f:
         file_samples = min(5000, len(f["frames"]))
-        approx_steps_per_epoch += (
-            file_samples * 0.8
-        ) // batch_size  # 80% for training, batch size 128
+        approx_steps_per_epoch += int(
+            (file_samples * 0.8) / batch_size
+        )  # 80% for training, batch size 128
 
 # Extrapolate to all files
 approx_steps_per_epoch = int(approx_steps_per_epoch * (len(h5_files) / max(1, sample_files)))
@@ -193,9 +257,9 @@ dataloader_kwargs = {
 }
 
 # Log training configuration
-print("\n" + "=" * 50)
+print("\n=================================================")
 print("TRAINING CONFIGURATION")
-print("=" * 50)
+print("=================================================")
 print(f"Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
 print(f"Model: {model.__class__.__name__}")
 print(f"Parameter Count: {param_count:,}")
@@ -203,7 +267,7 @@ print(
     f"Optimizer: AdamW (lr={optim.param_groups[0]['lr']}, weight_decay={optim.param_groups[0]['weight_decay']})"
 )
 print(f"Scheduler: OneCycleLR (max_lr=3e-4, total_steps={total_steps})")
-print(f"Loss Function: Improved (Focal + SmoothL1)")
+print("Loss Function: Improved (Focal + SmoothL1)")
 print(f"Epochs: {epochs}")
 print(f"Batch Size: {batch_size}")
 print(f"Gradient Accumulation Steps: {accumulation_steps}")
@@ -214,10 +278,10 @@ print(f"Number of Training Files: {len(h5_files)}")
 print(f"Early Stopping Patience: {early_stopping['patience']}")
 print("\nInitial Memory Status:")
 get_ram_usage()
-print("=" * 50 + "\n")
+print("=================================================\n")
 
 # Training loop
-total_start_time = time()
+training_start_time = time()
 for epoch in range(epochs):
     epoch_start_time = time()
     print(f"\nEpoch {epoch + 1}/{epochs}")
@@ -234,12 +298,12 @@ for epoch in range(epochs):
 
     # Track metrics
     epoch_metrics = {
-        "train_binary_acc": 0,
-        "train_analog_acc": 0,
-        "train_combined_acc": 0,
-        "val_binary_acc": 0,
-        "val_analog_acc": 0,
-        "val_combined_acc": 0,
+        "train_binary_acc": 0.0,
+        "train_analog_acc": 0.0,
+        "train_combined_acc": 0.0,
+        "val_binary_acc": 0.0,
+        "val_analog_acc": 0.0,
+        "val_combined_acc": 0.0,
     }
     files_processed = 0
 
@@ -300,9 +364,15 @@ for epoch in range(epochs):
                 binary_acc, analog_acc, combined_acc, analog_strict = calculate_metrics(
                     outputs, batch_y
                 )
-                epoch_metrics["train_binary_acc"] += binary_acc
-                epoch_metrics["train_analog_acc"] += analog_acc
-                epoch_metrics["train_combined_acc"] += combined_acc
+                epoch_metrics["train_binary_acc"] = float(
+                    epoch_metrics["train_binary_acc"] + binary_acc
+                )
+                epoch_metrics["train_analog_acc"] = float(
+                    epoch_metrics["train_analog_acc"] + analog_acc
+                )
+                epoch_metrics["train_combined_acc"] = float(
+                    epoch_metrics["train_combined_acc"] + combined_acc
+                )
 
             # Step optimizer after accumulation
             if (i + 1) % accumulation_steps == 0 or (i + 1 == len(train_loader)):
@@ -384,10 +454,10 @@ for epoch in range(epochs):
         model.eval()
         val_start_time = time()
         file_val_metrics = {
-            "binary_acc": 0,
-            "analog_acc": 0,
-            "combined_acc": 0,
-            "count": 0,
+            "binary_acc": 0.0,
+            "analog_acc": 0.0,
+            "combined_acc": 0.0,
+            "count": 0.0,
         }
 
         with torch.no_grad():
@@ -411,11 +481,19 @@ for epoch in range(epochs):
 
                 # Accumulate weighted metrics
                 samples = len(val_X)
-                file_val_metrics["binary_acc"] += binary_acc * samples
-                file_val_metrics["analog_acc"] += analog_acc * samples
-                file_val_metrics["combined_acc"] += combined_acc * samples
-                file_val_metrics["analog_strict"] = analog_strict  # Track strict metric separately
-                file_val_metrics["count"] += samples
+                file_val_metrics["binary_acc"] = float(
+                    file_val_metrics["binary_acc"] + binary_acc * samples
+                )
+                file_val_metrics["analog_acc"] = float(
+                    file_val_metrics["analog_acc"] + analog_acc * samples
+                )
+                file_val_metrics["combined_acc"] = float(
+                    file_val_metrics["combined_acc"] + combined_acc * samples
+                )
+                file_val_metrics["analog_strict"] = float(
+                    analog_strict
+                )  # Track strict metric separately
+                file_val_metrics["count"] = float(file_val_metrics["count"] + samples)
 
                 total_val_loss += batch_val_loss.item()
                 total_val_batches += 1
@@ -426,7 +504,9 @@ for epoch in range(epochs):
             for key in ["binary_acc", "analog_acc", "combined_acc"]:
                 avg_file_metrics[key] = file_val_metrics[key] / file_val_metrics["count"]
                 # Add to epoch total
-                epoch_metrics[f"val_{key}"] += avg_file_metrics[key]
+                epoch_metrics[f"val_{key}"] = float(
+                    epoch_metrics[f"val_{key}"] + avg_file_metrics[key]
+                )
 
         # Calculate average validation loss
         file_val_loss = total_val_loss / max(total_val_batches, 1)
@@ -460,7 +540,7 @@ for epoch in range(epochs):
         file_time = time() - file_start_time
         val_time = time() - val_start_time
 
-        print(f"\nFile Summary:")
+        print("\nFile Summary:")
         print(f"File processing time: {format_time(file_time)}")
         print(f"Training time: {format_time(file_time - val_time)}")
         print(f"Validation time: {format_time(val_time)}")
@@ -473,7 +553,7 @@ for epoch in range(epochs):
 
     # Calculate final epoch metrics averages
     for key in epoch_metrics:
-        epoch_metrics[key] /= files_processed
+        epoch_metrics[key] = float(epoch_metrics[key] / files_processed)
 
     # Epoch summary
     epoch_time = time() - epoch_start_time
@@ -520,23 +600,26 @@ for epoch in range(epochs):
 
         # Save best model separately
         torch.save(model.state_dict(), "rlai-1.4M/rlai-1.4M.pth")
-        print(f"✓ Saved new best model with validation loss: {avg_val_loss:.4f}")
+        print("✓ Saved new best model with validation loss: {:.4f}".format(avg_val_loss))
     else:
-        early_stopping["counter"] += 1
+        early_stopping["counter"] = float(early_stopping["counter"] + 1)
         print(
-            f"! Validation loss did not improve for {early_stopping['counter']} epochs. "
-            f"Best: {early_stopping['best_val_loss']:.4f} at epoch {early_stopping['best_epoch']}"
+            "! Validation loss did not improve for {} epochs. Best: {:.4f} at epoch {}".format(
+                early_stopping["counter"],
+                early_stopping["best_val_loss"],
+                early_stopping["best_epoch"],
+            )
         )
 
         if early_stopping["counter"] >= early_stopping["patience"]:
-            print(f"⚠ Early stopping triggered after {epoch + 1} epochs")
+            print("⚠ Early stopping triggered after {} epochs".format(epoch + 1))
             break
 
 # Training summary
-total_time = time() - total_start_time
-print("\n" + "=" * 50)
+total_time = time() - training_start_time
+print("\n=================================================")
 print("TRAINING COMPLETE")
-print("=" * 50)
+print("=================================================")
 print(f"Total Duration: {format_time(total_time)}")
 print(f"Average Time per Epoch: {format_time(total_time / (epoch + 1))}")
 print(f"End Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -545,7 +628,7 @@ print(
 )
 print("Final Memory Status:")
 get_ram_usage()
-print("=" * 50)
+print("=================================================")
 
 # Final cleanup
 writer.close()

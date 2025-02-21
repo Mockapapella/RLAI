@@ -1,3 +1,5 @@
+"""Module for applying neural network predictions to a virtual game controller."""
+
 import logging
 from datetime import datetime
 
@@ -9,6 +11,13 @@ from evdev.uinput import UInput
 
 
 class InputApplier:
+    """Applies neural network predictions to a virtual game controller.
+
+    Creates and manages a virtual controller that can receive inputs from
+    the neural network's predictions, handling both button presses and
+    analog inputs (sticks/triggers) with appropriate scaling and deadzone handling.
+    """
+
     def __init__(self, debug_mode=False):
         self.debug_mode = debug_mode
         if debug_mode:
@@ -80,13 +89,12 @@ class InputApplier:
                 logging.error(error_msg)
             raise RuntimeError(error_msg)
 
-    def apply_inputs(self, predictions):
-        """
-        Apply the neural network predictions to the virtual controller
+    def apply_inputs(self, predictions: torch.Tensor | np.ndarray) -> None:
+        """Apply the neural network predictions to the virtual controller.
 
         Args:
-            predictions: torch tensor of shape (1, 19) or numpy array of shape (19,)
-                       Values should be in range [0, 1] for normalization
+            predictions: Torch tensor of shape (1, 19) or numpy array of shape (19).
+                       Values should be in range [0, 1] for normalization.
         """
         try:
             # Convert predictions to numpy if needed
@@ -208,8 +216,8 @@ class InputApplier:
                 logging.error(error_msg)
             raise RuntimeError(error_msg)
 
-    def close(self):
-        """Safely close the virtual controller"""
+    def close(self) -> None:
+        """Safely close the virtual controller and reset all inputs to neutral."""
         try:
             # Reset all inputs to neutral
             self.apply_inputs(np.array([0] * 11 + [0.5] * 6 + [0] * 2))
@@ -221,9 +229,9 @@ class InputApplier:
                 logging.error(f"Error closing controller: {str(e)}")
 
 
-def test_controller():
-    """Test function to verify controller functionality"""
-    applier = EnhancedInputApplier(debug_mode=True)
+def test_controller() -> None:
+    """Test the virtual controller functionality with various input patterns."""
+    applier = InputApplier(debug_mode=True)
     try:
         # Test neutral position
         print("\nTesting neutral position...")

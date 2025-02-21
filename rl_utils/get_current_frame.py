@@ -1,3 +1,5 @@
+"""Module for capturing frames from the active window in Rocket League."""
+
 import subprocess
 import time
 from typing import Optional
@@ -8,13 +10,23 @@ import numpy as np
 
 
 class FrameGrabber:
+    """Captures and processes frames from the active window.
+
+    Uses mss for efficient screen capture and xdotool for window geometry tracking.
+    Implements caching and rate limiting to minimize system resource usage.
+    """
+
     def __init__(self):
         self.sct = mss.mss()
         self.monitor = None
         self.last_geometry_check = 0
 
     def _get_window_geometry(self) -> Optional[dict]:
-        """Cached geometry check with rate limiting"""
+        """Get the active window's geometry with caching and rate limiting.
+
+        Returns:
+            Dictionary containing window geometry (left, top, width, height) or None if unavailable.
+        """
         current_time = time.time()
         if current_time - self.last_geometry_check < 0.5:  # Only check twice per second
             return self.monitor
@@ -57,7 +69,13 @@ class FrameGrabber:
             return self.monitor
 
     def capture_frame(self) -> Optional[np.ndarray]:
-        """Capture frame with zero-copy transfer when possible"""
+        """Capture a frame from the active window efficiently.
+
+        Uses zero-copy transfer when possible to minimize memory usage and improve performance.
+
+        Returns:
+            Numpy array containing the captured frame in RGB format, or None if capture failed.
+        """
         monitor = self._get_window_geometry()
         if not monitor:
             return None
@@ -77,6 +95,5 @@ if __name__ == "__main__":
     try:
         while True:
             frame = grabber.capture_frame()
-            # Add your processing here
     except KeyboardInterrupt:
         print("\nCapture stopped.")

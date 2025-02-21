@@ -1,14 +1,28 @@
+"""Module for monitoring and retrieving the active window title in Rocket League."""
+
 import subprocess
 import time
 
 
 class WindowMonitor:
+    """Monitors the active window title with caching and rate limiting.
+
+    Provides efficient window title tracking by implementing caching and
+    rate limiting to minimize system calls and resource usage.
+    """
+
     def __init__(self):
         self.last_check = 0
         self.cached_name = None
         self.update_interval = 0.3  # Update every 300ms
 
-    def get_active_window(self):
+    def get_active_window(self) -> str:
+        """Get the title of the currently active window.
+
+        Returns:
+            The title of the active window, or the last known title if
+            the check fails or is rate limited.
+        """
         current_time = time.time()
         if current_time - self.last_check < self.update_interval:
             return self.cached_name
@@ -27,21 +41,6 @@ class WindowMonitor:
 
         self.last_check = current_time
         return self.cached_name
-
-
-# Legacy function for backwards compatibility
-def get_active_window():
-    try:
-        result = subprocess.run(
-            ["xdotool", "getactivewindow", "getwindowname"],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=0.05,
-        )
-        return result.stdout.strip()
-    except Exception:
-        return None
 
 
 if __name__ == "__main__":

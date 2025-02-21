@@ -1,3 +1,5 @@
+"""Utility for saving and loading batches of frames and inputs for Rocket League AI training."""
+
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -8,6 +10,8 @@ import numpy as np
 
 
 class BatchSaver:
+    """Saves batches of frames and inputs to HDF5 files for efficient storage and loading."""
+
     def __init__(
         self,
         batch_size: int,
@@ -23,11 +27,17 @@ class BatchSaver:
         self.compression_level = compression_level
         os.makedirs(self.save_dir, exist_ok=True)
 
-        self.frames = []
-        self.inputs = []
+        self.frames: list[np.ndarray] = []
+        self.inputs: list[np.ndarray] = []
         self.executor = ThreadPoolExecutor(max_workers=1)
 
-    def add_sample(self, frame: np.ndarray, inputs: np.ndarray):
+    def add_sample(self, frame: np.ndarray, inputs: np.ndarray) -> None:
+        """Add a frame and its corresponding inputs to the current batch.
+
+        Args:
+            frame: The frame to add.
+            inputs: The corresponding input values.
+        """
         # Resize frame
         frame = cv2.resize(frame, self.target_size)
 
@@ -86,8 +96,15 @@ class BatchSaver:
 
         self.executor.submit(save_task)
 
-    def load_batch(self, filename):
-        """Utility method to load a saved batch"""
+    def load_batch(self, filename: str) -> tuple[np.ndarray, np.ndarray, dict]:
+        """Load a saved batch from an HDF5 file.
+
+        Args:
+            filename: Path to the HDF5 file to load.
+
+        Returns:
+            A tuple containing (frames, inputs, metadata).
+        """
         with h5py.File(filename, "r") as f:
             frames = f["frames"][:]
             inputs = f["inputs"][:]
