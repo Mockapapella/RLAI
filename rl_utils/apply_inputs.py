@@ -184,7 +184,7 @@ class InputApplier:
             print("\nFinal controller commands:")
             print("Button States:")
             for code, value in zip(button_codes, predictions[:11]):
-                if code not in [ecodes.BTN_NORTH, ecodes.BTN_MODE, ecodes.BTN_START]:
+                if code not in [ecodes.BTN_MODE, ecodes.BTN_START]:
                     button_state = int(value > 0.7)
                     print(
                         f"  {ecodes.BTN[code]}: {'Pressed' if button_state else 'Released'}"

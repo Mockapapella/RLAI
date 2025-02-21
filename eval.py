@@ -8,7 +8,6 @@ import logging
 from datetime import datetime
 
 logging.basicConfig(
-    filename=f"rocket_league_eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log",
     level=logging.DEBUG,
     format="%(asctime)s - %(levelname)s - %(message)s",
 )
