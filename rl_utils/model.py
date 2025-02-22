@@ -10,6 +10,7 @@ class RocketNet(nn.Module):
 
     Architecture:
         - Shared convolutional backbone for processing input frames
+        - Shared fully connected backbone
         - Separate heads for binary (buttons) and analog (sticks/triggers) outputs
     """
 
