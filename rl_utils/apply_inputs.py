@@ -124,7 +124,7 @@ class InputApplier:
 
             # Apply button thresholding with hysteresis
             for code, value in zip(button_codes, predictions[:11]):
-                button_state = int(value > 0.7)  # Simple threshold for buttons
+                button_state = int(value > 0.5)  # Simple threshold for buttons
                 if code == ecodes.BTN_MODE or code == ecodes.BTN_START:
                     continue
                 self.ui.write(ecodes.EV_KEY, code, button_state)
@@ -142,7 +142,7 @@ class InputApplier:
                 # Center around 0.5 (neutral)
                 centered_value = stick_trigger_values[i] - 0.5
 
-                deadzone = 0.025  # 5% deadzone for all stick movement
+                deadzone = 0.025  # 2.5% deadzone for all stick movement
                 sensitivity = 1.0  # Base sensitivity
 
                 # Apply deadzone

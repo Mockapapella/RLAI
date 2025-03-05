@@ -197,9 +197,9 @@ if torch.cuda.is_available():
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-epochs = 2
+epochs = 25
 batch_size = 128
-accumulation_steps = 1  # Gradient accumulation for effective batch size of 512
+accumulation_steps = 1  # Gradient accumulation
 scaler = GradScaler()  # For mixed precision training
 max_grad_norm = 1.0  # Increased from 0.1 for better gradient flow
 
